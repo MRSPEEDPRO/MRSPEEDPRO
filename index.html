@@ -261,7 +261,8 @@ nav.tabs {
 
 nav.tabs button {
   flex: 1;
-  max-width: 110px;
+  min-width: 0;
+  max-width: 96px;
   min-height: var(--tap);
   display: flex;
   flex-direction: column;
@@ -278,6 +279,13 @@ nav.tabs button {
 }
 nav.tabs button .ic { font-size: 1.22rem; line-height: 1; }
 nav.tabs button[aria-selected="true"] { color: var(--sage-deep); background: var(--sage-soft); }
+
+/* 7 onglets : on resserre sur les écrans étroits */
+@media (max-width: 400px) {
+  nav.tabs { gap: 0; padding-left: 2px; padding-right: 2px; }
+  nav.tabs button { font-size: .6rem; padding: 5px 1px; letter-spacing: -.2px; }
+  nav.tabs button .ic { font-size: 1.12rem; }
+}
 
 /* --- Grilles et listes --------------------------------------------------- */
 
@@ -604,6 +612,7 @@ mark { background: color-mix(in srgb, var(--clay) 32%, transparent); color: inhe
 
 <nav class="tabs" role="tablist" aria-label="Navigation principale">
   <button role="tab" data-tab="jour" aria-selected="true"><span class="ic">🌅</span>Aujourd'hui</button>
+  <button role="tab" data-tab="perso" aria-selected="false"><span class="ic">🎯</span>Ma médit.</button>
   <button role="tab" data-tab="plans" aria-selected="false"><span class="ic">📖</span>Plans</button>
   <button role="tab" data-tab="themes" aria-selected="false"><span class="ic">🌸</span>Thèmes</button>
   <button role="tab" data-tab="bible" aria-selected="false"><span class="ic">🔍</span>Bible</button>
@@ -1004,18 +1013,33 @@ window.PLANS=[{"id":"bible-1an","n":"La Bible en 1 an","i":"📖","d":"Les 1 189
       for (var v = 1; v <= n; v++) pool.push(p.livre + " " + c + ":" + v);
     });
     if (!pool.length) return null;
-    var idx;
+    var idx, cycle = 0;
+    var sel = p.livre + "|" + (p.chapitre || 0) + "|" + (p.tirage || 0);
     if (p.mode === "aleatoire") {
-      // tirage déterministe par jour, différent de la veille
+      // tirage déterministe par jour, toujours différent de la veille
       var seed = dayNumber(date);
-      idx = hash(seed + "|" + p.livre + "|" + (p.chapitre || 0)) % pool.length;
-      var prev = hash((seed - 1) + "|" + p.livre + "|" + (p.chapitre || 0)) % pool.length;
+      idx = hash(seed + "|" + sel) % pool.length;
+      var prev = hash((seed - 1) + "|" + sel) % pool.length;
       if (pool.length > 1 && idx === prev) idx = (idx + 1) % pool.length;
     } else {
-      idx = ((p.pos || 0) + (dayNumber(date) - (p.jour0 || dayNumber(new Date())))) % pool.length;
-      if (idx < 0) idx += pool.length;
+      // suivi : un verset après l'autre, avec cycle en fin de passage
+      var brut = (p.pos || 0) + (dayNumber(date) - (p.jour0 || dayNumber(new Date())));
+      cycle = Math.floor(brut / pool.length);
+      idx = brut % pool.length;
+      if (idx < 0) { idx += pool.length; cycle -= 1; }
     }
-    return { ref: pool[idx], total: pool.length, index: idx };
+    return { ref: pool[idx], total: pool.length, index: idx, cycle: cycle, pool: pool };
+  }
+
+  // Mémorise un verset rencontré dans le passage choisi
+  function markVu(ref) {
+    if (!S.perso) return;
+    if (!S.perso.vus) S.perso.vus = [];
+    if (S.perso.vus.indexOf(ref) === -1) {
+      S.perso.vus.push(ref);
+      if (S.perso.vus.length > 600) S.perso.vus.shift();
+      save();
+    }
   }
 
   function hash(s) {
@@ -1209,11 +1233,7 @@ window.PLANS=[{"id":"bible-1an","n":"La Bible en 1 an","i":"📖","d":"Les 1 189
     var ref = usePerso ? perso.ref : dailyRefFor(date);
     var txt = verseText(ref);
     if (offset === 0) S.lu[ymd(date)] = ref;
-    // découvertes : versets déjà rencontrés dans le passage choisi
-    if (usePerso && offset === 0) {
-      if (!S.perso.vus) S.perso.vus = [];
-      if (S.perso.vus.indexOf(ref) === -1) { S.perso.vus.push(ref); save(); }
-    }
+    if (usePerso && offset === 0) markVu(ref);
 
     var h = "";
     h += '<div class="card verse-card">';
@@ -1262,6 +1282,7 @@ window.PLANS=[{"id":"bible-1an","n":"La Bible en 1 an","i":"📖","d":"Les 1 189
       h += '<button class="btn sm" id="perso-tog">' +
         (S.perso.actif === false ? "Activer ma méditation" : "Voir le verset du jour général") + "</button>";
       h += '<button class="btn sm" id="perso-edit">Modifier</button>';
+      h += '<button class="btn sm" data-tab="perso">Ouvrir ▸</button>';
       h += '<button class="btn sm" id="perso-del">Supprimer</button></div>';
     } else {
       h += '<p class="muted" style="font-size:.9rem;margin:0 0 14px">Choisissez un livre ou un chapitre : ' +
@@ -1343,9 +1364,134 @@ window.PLANS=[{"id":"bible-1an","n":"La Bible en 1 an","i":"📖","d":"Les 1 189
       };
       save();
       closeSheet();
-      toast("Méditation enregistrée ✓");
+      var inf3 = persoRefFor(new Date());
+      if (inf3) markVu(inf3.ref);
+      current = "perso";
+      offset = 0;
       render();
+      toast("Méditation enregistrée ✓");
     });
+  }
+
+  // --- Vue « Ma méditation » -----------------------------------------------
+  function viewPerso() {
+    var h = '<h2 class="section-h">🎯 Ma méditation</h2>';
+
+    if (!S.perso) {
+      h += '<p class="section-sub">Choisissez un passage : chaque jour, votre verset en sera tiré.</p>';
+      h += '<div class="card"><div class="empty"><span class="ic">🎯</span>' +
+        "Aucune méditation en cours.<br><small>Un chapitre, un livre entier — à votre rythme.</small></div>" +
+        '<button class="btn primary block" id="perso-edit">Créer ma méditation</button></div>';
+
+      h += '<div class="card"><div class="card-title">Comment ça marche</div>';
+      h += '<div class="step"><div class="num">📆</div><div><h4>Suivi</h4>' +
+        "<p>Les versets défilent <strong>dans l'ordre</strong>, un par jour. " +
+        "Arrivé au bout du passage, la lecture <strong>recommence</strong> pour un nouveau cycle.</p></div></div>";
+      h += '<div class="step"><div class="num">🎲</div><div><h4>Aléatoire</h4>' +
+        "<p>Un verset <strong>surprise</strong> chaque jour, jamais celui de la veille. " +
+        "Vos <strong>découvertes</strong> sont comptabilisées au fil du temps.</p></div></div>";
+      h += "</div>";
+      return h;
+    }
+
+    var p = S.perso;
+    var info = persoRefFor(addDays(new Date(), -offset));
+    if (!info) return h + '<div class="card"><div class="empty">Passage introuvable.</div></div>';
+    var ref = info.ref;
+    var txt = verseText(ref);
+    var passage = bookName(p.livre) + (p.chapitre ? " " + p.chapitre : " (livre entier)");
+    var vus = (p.vus || []).length;
+
+    // --- le verset
+    h += '<div class="card verse-card">';
+    h += '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px">';
+    h += '<span class="verse-date">' + esc(frDate(addDays(new Date(), -offset))) + "</span>";
+    h += '<span class="chip">' + (p.mode === "suivi" ? "📆 Suivi" : "🎲 Aléatoire") + "</span>";
+    h += "</div>";
+    h += '<p class="verse-text' + (S.reglages.taille > 1.1 ? " big" : "") + '">' + esc(txt) + "</p>";
+    h += '<div class="verse-ref">— ' + esc(refLabel(ref)) + "</div>";
+    h += '<div class="verse-actions">';
+    h += '<button class="btn sm" data-speak="' + esc(txt) + '">🔊 Écouter</button>';
+    h += '<button class="btn sm' + (isFav(ref) ? " on" : "") + '" data-fav="' + ref + '">' +
+      (isFav(ref) ? "★ Favori" : "☆ Favori") + "</button>";
+    h += '<button class="btn sm" data-note="' + ref + '">✍️ Noter</button>';
+    h += '<button class="btn sm" data-share="' + ref + '">↗ Partager</button>';
+    h += '<button class="btn sm" data-open="' + ref + '">📖 Contexte</button>';
+    h += "</div></div>";
+
+    // --- pilotage selon la méthode
+    h += '<div class="card"><div class="card-title">' + esc(passage) + "</div>";
+
+    if (p.mode === "suivi") {
+      var pos = info.index + 1;
+      var pct = Math.round(pos / info.total * 100);
+      h += '<div class="row" style="border:none;padding:0 0 8px">' +
+        '<div class="grow"><div class="ttl">Verset ' + pos + " sur " + info.total + "</div>" +
+        '<div class="meta">' + pct + " % du passage" +
+        (info.cycle > 0 ? " · cycle n° " + (info.cycle + 1) : "") + "</div></div></div>";
+      h += '<div class="bar"><i style="width:' + pct + '%"></i></div>';
+      h += '<div style="display:flex;gap:8px;margin-top:14px">';
+      h += '<button class="btn sm" style="flex:1" data-pstep="-1">← Précédent</button>';
+      h += '<button class="btn sm" style="flex:1" data-pstep="1">Suivant →</button>';
+      h += "</div>";
+      h += '<p class="muted" style="font-size:.82rem;margin:12px 0 0">' +
+        "Un verset par jour, dans l'ordre. Vous pouvez aussi avancer à la main." +
+        (info.index + 1 === info.total
+          ? " <strong>Dernier verset : demain, le cycle recommence.</strong>" : "") + "</p>";
+    } else {
+      var pctv = Math.round(vus / info.total * 100);
+      h += '<div class="row" style="border:none;padding:0 0 8px">' +
+        '<div class="grow"><div class="ttl">' + vus + " verset" + (vus > 1 ? "s" : "") +
+        " découvert" + (vus > 1 ? "s" : "") + "</div>" +
+        '<div class="meta">sur ' + info.total + " possibles · " + pctv + " %</div></div></div>";
+      h += '<div class="bar"><i style="width:' + pctv + '%"></i></div>';
+      h += '<div style="display:flex;gap:8px;margin-top:14px">';
+      h += '<button class="btn sm block" id="perso-redraw">🎲 Tirer un autre verset</button>';
+      h += "</div>";
+      h += '<p class="muted" style="font-size:.82rem;margin:12px 0 0">' +
+        "Chaque jour un verset différent de la veille. Le tirage du jour reste le même " +
+        "jusqu'à demain, sauf si vous en demandez un autre.</p>";
+    }
+    h += "</div>";
+
+    // --- changer de méthode, à tout moment
+    h += '<div class="card"><div class="card-title">Méthode</div><div class="grid two">';
+    h += '<button class="tile" data-pmode="suivi"' +
+      (p.mode === "suivi" ? ' style="border-color:var(--sage);background:var(--sage-soft)"' : "") +
+      '><span class="ic">📆</span><span class="lb">Suivi</span>' +
+      '<span class="sub">Dans l\'ordre</span></button>';
+    h += '<button class="tile" data-pmode="aleatoire"' +
+      (p.mode === "aleatoire" ? ' style="border-color:var(--sage);background:var(--sage-soft)"' : "") +
+      '><span class="ic">🎲</span><span class="lb">Aléatoire</span>' +
+      '<span class="sub">Un verset surprise</span></button>';
+    h += "</div>";
+    h += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">';
+    h += '<button class="btn sm" id="perso-edit">Changer de passage</button>';
+    h += '<button class="btn sm" id="perso-tog">' +
+      (p.actif === false ? "Activer sur l'accueil" : "Verset général sur l'accueil") + "</button>";
+    h += '<button class="btn sm" id="perso-del">Supprimer</button>';
+    h += "</div>";
+    h += '<p class="muted" style="font-size:.82rem;margin:12px 0 0">' +
+      (p.actif === false
+        ? "L'accueil affiche le verset du jour général."
+        : "L'accueil affiche votre méditation personnalisée.") + "</p>";
+    h += "</div>";
+
+    // --- versets déjà rencontrés
+    if (vus) {
+      h += '<div class="card"><div class="card-title">Déjà rencontrés (' + vus + ")</div>";
+      p.vus.slice().reverse().slice(0, 12).forEach(function (r) {
+        h += '<div class="row"><div class="grow">' +
+          '<div class="ttl">' + esc(refLabel(r)) + "</div>" +
+          '<div class="meta">' + esc(verseText(r).slice(0, 70)) + "…</div></div>" +
+          '<button class="btn sm" data-open="' + r + '">Ouvrir</button></div>';
+      });
+      if (vus > 12) h += '<p class="muted" style="font-size:.8rem;margin:10px 0 0">' +
+        "et " + (vus - 12) + " autre" + (vus - 12 > 1 ? "s" : "") + "…</p>";
+      h += "</div>";
+    }
+
+    return h;
   }
 
   function viewPlans() {
@@ -1748,6 +1894,7 @@ window.PLANS=[{"id":"bible-1an","n":"La Bible en 1 an","i":"📖","d":"Les 1 189
   var VIEWS = {
     jour: viewJour,
     plans: viewPlans,
+    perso: viewPerso,
     themes: viewThemes,
     bible: viewBible,
     journal: viewJournal,
@@ -1782,7 +1929,7 @@ window.PLANS=[{"id":"bible-1an","n":"La Bible en 1 an","i":"📖","d":"Les 1 189
   document.addEventListener("click", function (e) {
     var t = e.target.closest("[data-tab],[data-fav],[data-note],[data-share],[data-speak]," +
       "[data-copy],[data-close],[data-plan],[data-theme],[data-book],[data-open]," +
-      "[data-off],[data-size],[data-mode2],[data-ndel]");
+      "[data-off],[data-size],[data-mode2],[data-ndel],[data-pstep],[data-pmode]");
     if (!t) return;
 
     if (t.hasAttribute("data-tab")) {
@@ -1829,6 +1976,26 @@ window.PLANS=[{"id":"bible-1an","n":"La Bible en 1 an","i":"📖","d":"Les 1 189
       save();
       applySettings();
       render();
+    } else if (t.hasAttribute("data-pstep")) {
+      // suivi : avancer / reculer d'un verset à la main
+      var st = +t.dataset.pstep;
+      var inf0 = persoRefFor(new Date());
+      S.perso.pos = (S.perso.pos || 0) + st;
+      save();
+      var inf1 = persoRefFor(new Date());
+      if (inf1) markVu(inf1.ref);
+      if (inf0 && inf1 && inf1.cycle > inf0.cycle) toast("Nouveau cycle : on recommence 🌿");
+      render();
+    } else if (t.hasAttribute("data-pmode")) {
+      // bascule suivi / aléatoire sans perdre le passage
+      if (S.perso && S.perso.mode !== t.dataset.pmode) {
+        S.perso.mode = t.dataset.pmode;
+        save();
+        var inf2 = persoRefFor(new Date());
+        if (inf2) markVu(inf2.ref);
+        render();
+        toast(t.dataset.pmode === "suivi" ? "Méthode 📆 suivi" : "Méthode 🎲 aléatoire");
+      }
     } else if (t.hasAttribute("data-ndel")) {
       var id = t.dataset.ndel;
       S.notes = S.notes.filter(function (n) { return n.id !== id; });
@@ -1841,6 +2008,14 @@ window.PLANS=[{"id":"bible-1an","n":"La Bible en 1 an","i":"📖","d":"Les 1 189
   document.addEventListener("click", function (e) {
     if (e.target.closest("#jexport") || e.target.closest("#jexport2")) exportJournal();
     if (e.target.closest("#perso-edit")) persoSheet();
+    if (e.target.closest("#perso-redraw")) {
+      S.perso.tirage = (S.perso.tirage || 0) + 1;
+      save();
+      var inf = persoRefFor(new Date());
+      if (inf) markVu(inf.ref);
+      render();
+      toast("Nouveau verset 🎲");
+    }
     if (e.target.closest("#perso-tog")) {
       S.perso.actif = S.perso.actif === false;
       save();
@@ -1851,6 +2026,11 @@ window.PLANS=[{"id":"bible-1an","n":"La Bible en 1 an","i":"📖","d":"Les 1 189
       save();
       render();
       toast("Méditation supprimée");
+    }
+    if (e.target.closest("#perso-go")) {
+      current = "perso";
+      offset = 0;
+      render();
     }
     if (e.target.closest("#wipe")) {
       sheet("Tout effacer ?",

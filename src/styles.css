@@ -248,7 +248,8 @@ nav.tabs {
 
 nav.tabs button {
   flex: 1;
-  max-width: 110px;
+  min-width: 0;
+  max-width: 96px;
   min-height: var(--tap);
   display: flex;
   flex-direction: column;
@@ -265,6 +266,13 @@ nav.tabs button {
 }
 nav.tabs button .ic { font-size: 1.22rem; line-height: 1; }
 nav.tabs button[aria-selected="true"] { color: var(--sage-deep); background: var(--sage-soft); }
+
+/* 7 onglets : on resserre sur les écrans étroits */
+@media (max-width: 400px) {
+  nav.tabs { gap: 0; padding-left: 2px; padding-right: 2px; }
+  nav.tabs button { font-size: .6rem; padding: 5px 1px; letter-spacing: -.2px; }
+  nav.tabs button .ic { font-size: 1.12rem; }
+}
 
 /* --- Grilles et listes --------------------------------------------------- */
 

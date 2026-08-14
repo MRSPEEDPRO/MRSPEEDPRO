@@ -181,7 +181,7 @@ ok(byId["bible-1an"].days[0].t.includes("Genèse"), "titre du 1er jour lisible e
 // ---------------------------------------------------------------------------
 section("9. Interface et navigation");
 const tabs = [...document.querySelectorAll("nav.tabs button")];
-eq(tabs.length, 6, "6 onglets de navigation");
+eq(tabs.length, 7, "7 onglets de navigation");
 eq(tabs.filter(t => t.getAttribute("aria-selected") === "true").length, 1,
   "un seul onglet actif à la fois");
 ok(document.getElementById("loader") === null, "écran de chargement retiré après démarrage");
@@ -195,6 +195,7 @@ function clickTab(name) {
 }
 const views = {
   jour: /verse-text/,
+  perso: /Ma méditation/,
   plans: /Plans de lecture/,
   themes: /Thèmes de méditation/,
   bible: /Rechercher/,
@@ -373,7 +374,90 @@ eq(MB.state().perso, null, "méditation personnalisée supprimée");
 ok(/Créer ma méditation/.test(document.getElementById("main").innerHTML),
   "proposition de création après suppression");
 
-section("17. Partage");
+section("17. Onglet « Ma méditation » : pilotage");
+// (re)créer une méditation en mode suivi sur un chapitre court
+clickTab("perso");
+ok(/Créer ma méditation/.test(document.getElementById("main").innerHTML),
+  "écran vide proposant la création");
+ok(/Suivi/.test(document.getElementById("main").innerHTML) &&
+   /Aléatoire/.test(document.getElementById("main").innerHTML),
+  "les deux méthodes sont expliquées avant de commencer");
+
+document.getElementById("perso-edit").dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+document.getElementById("p-book").value = "JUD";      // Jude : 1 seul chapitre, 25 versets
+document.getElementById("p-book").dispatchEvent(new window.Event("change", { bubbles: true }));
+document.getElementById("p-chap").value = "1";
+document.querySelector('.sheet [data-mode="suivi"]')
+  .dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+document.getElementById("p-save").dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+
+ok(document.querySelector('nav.tabs button[data-tab="perso"]').getAttribute("aria-selected") === "true",
+  "l'enregistrement ouvre l'onglet Ma méditation");
+let pm = document.getElementById("main").innerHTML;
+ok(/📆 Suivi/.test(pm), "méthode « suivi » affichée");
+ok(/Jude/.test(pm), "passage choisi affiché");
+ok(/class="bar"/.test(pm), "barre de progression du passage");
+ok(/Verset 1 sur 25/.test(pm), "position dans le passage : verset 1 sur 25");
+
+// avancer / reculer à la main
+const refDep = MB.persoRefFor(new window.Date()).ref;
+document.querySelector('[data-pstep="1"]').dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+eq(MB.persoRefFor(new window.Date()).index, 1, "bouton « Suivant » avance d'un verset");
+ok(/Verset 2 sur 25/.test(document.getElementById("main").innerHTML), "position mise à jour");
+document.querySelector('[data-pstep="-1"]').dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+eq(MB.persoRefFor(new window.Date()).ref, refDep, "bouton « Précédent » revient en arrière");
+
+// cycle en fin de passage
+for (let i = 0; i < 24; i++)
+  document.querySelector('[data-pstep="1"]').dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+ok(/Verset 25 sur 25/.test(document.getElementById("main").innerHTML), "dernier verset atteint");
+ok(/cycle recommence/.test(document.getElementById("main").innerHTML),
+  "l'utilisateur est prévenu que le cycle va recommencer");
+document.querySelector('[data-pstep="1"]').dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+eq(MB.persoRefFor(new window.Date()).ref, refDep, "cycle : retour au premier verset");
+ok(/cycle n° 2/.test(document.getElementById("main").innerHTML), "compteur de cycle affiché");
+
+// versets déjà rencontrés
+ok(/Déjà rencontrés/.test(document.getElementById("main").innerHTML),
+  "historique des versets rencontrés");
+ok(MB.state().perso.vus.length >= 25, "les 25 versets parcourus sont mémorisés");
+
+// bascule de méthode depuis l'écran, sans reperdre le passage
+document.querySelector('[data-pmode="aleatoire"]').dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+eq(MB.state().perso.mode, "aleatoire", "bascule vers 🎲 aléatoire en un geste");
+eq(MB.state().perso.livre, "JUD", "le passage est conservé");
+pm = document.getElementById("main").innerHTML;
+ok(/découvert/.test(pm), "compteur de découvertes affiché");
+ok(/Tirer un autre verset/.test(pm), "bouton de nouveau tirage");
+
+// nouveau tirage
+const avant = MB.persoRefFor(new window.Date()).ref;
+let change = false;
+for (let i = 0; i < 6 && !change; i++) {
+  document.getElementById("perso-redraw").dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+  if (MB.persoRefFor(new window.Date()).ref !== avant) change = true;
+}
+ok(change, "« Tirer un autre verset » change le verset du jour");
+ok(MB.state().perso.tirage >= 1, "le tirage manuel est mémorisé");
+
+document.querySelector('[data-pmode="suivi"]').dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+eq(MB.state().perso.mode, "suivi", "retour à 📆 suivi");
+
+// l'accueil suit la méditation, et peut la mettre de côté
+document.getElementById("perso-tog").dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+eq(MB.state().perso.actif, false, "l'accueil repasse au verset général");
+ok(/verse-text/.test(clickTab("jour")), "accueil toujours fonctionnel");
+ok(!/🎯 Ma méditation<\/span>/.test(document.getElementById("main").innerHTML),
+  "badge retiré de l'accueil");
+clickTab("perso");
+document.getElementById("perso-tog").dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+eq(MB.state().perso.actif, true, "réactivation sur l'accueil");
+ok(/🎯 Ma méditation/.test(clickTab("jour")), "badge de retour sur l'accueil");
+clickTab("perso");
+document.getElementById("perso-del").dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+eq(MB.state().perso, null, "suppression depuis l'onglet");
+
+section("18. Partage");
 clickTab("jour");
 document.querySelector("[data-share]").dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
 const shareHtml = document.querySelector(".sheet").innerHTML;
@@ -386,7 +470,7 @@ ok(wa && decodeURIComponent(wa.href).includes("Louis Segond"),
   "le verset et la version sont pré-remplis dans le partage");
 document.querySelector(".sheet-bg").remove();
 
-section("18. Réglages");
+section("19. Réglages");
 clickTab("plus");
 document.querySelector('[data-size="1.3"]').dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
 eq(MB.state().reglages.taille, 1.3, "taille du texte modifiée");
@@ -399,7 +483,7 @@ eq(document.documentElement.getAttribute("data-theme"), "jour", "bascule jour/nu
 document.querySelector('[data-size="1"]').dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
 
 function sectionsFinales() {
-section("19. Persistance locale");
+section("20. Persistance locale");
 const stored = window.localStorage.getItem("meditation-biblique");
 ok(!!stored, "données enregistrées dans localStorage");
 const parsed = JSON.parse(stored);
@@ -408,13 +492,13 @@ const parsed = JSON.parse(stored);
 });
 ok(MB.state().serie.jours >= 1, "série de jours démarrée");
 
-section("20. Vie privée et accessibilité");
+section("21. Vie privée et accessibilité");
 ok(!/fetch\(|XMLHttpRequest|navigator\.sendBeacon/.test(code),
   "aucun appel réseau dans le code");
 ok(!/google-analytics|gtag\(|googletagmanager|facebook\.net/.test(code),
   "aucun traceur");
 ok(/lang="fr"/.test(html), "langue déclarée pour les lecteurs d'écran");
-ok(document.querySelectorAll('nav.tabs button[role="tab"]').length === 6,
+ok(document.querySelectorAll('nav.tabs button[role="tab"]').length === 7,
   "rôles ARIA sur les onglets");
 ok([...document.querySelectorAll(".icon-btn")].every(b => b.getAttribute("aria-label")),
   "boutons icônes étiquetés");
@@ -427,7 +511,7 @@ ok(/env\(safe-area-inset-bottom/.test(html), "zone sûre iPhone prise en compte"
   await new Promise(r => setTimeout(r, 300));
   sectionsFinales();
 
-  section("21. Recherche : exécution");
+  section("22. Recherche : exécution");
   clickTab("bible");
   await searchNow("berger");
   const res = document.getElementById("qres").innerHTML;
