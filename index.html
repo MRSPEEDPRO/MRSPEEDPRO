@@ -35,6 +35,7 @@
   --fs: 1rem;
   --maxw: 620px;
   --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-t: env(safe-area-inset-top, 0px);
 }
 
 [data-theme="nuit"] {
@@ -588,6 +589,175 @@ mark { background: color-mix(in srgb, var(--clay) 32%, transparent); color: inhe
   nav.tabs, .verse-actions, .top-actions, .btn { display: none !important; }
   .app { padding: 0; }
 }
+
+/* --- Lecteur plein écran (façon Bible) ----------------------------------- */
+
+.reader {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  background: var(--paper);
+  display: flex;
+  flex-direction: column;
+  animation: fade .18s ease;
+}
+
+.reader-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: calc(8px + var(--safe-t)) 12px 8px;
+  background: color-mix(in srgb, var(--paper) 92%, transparent);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--line);
+}
+.reader-title {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  justify-content: center;
+  font-family: Georgia, "Iowan Old Style", "Times New Roman", serif;
+  font-size: 1.02rem;
+  font-weight: 600;
+  color: var(--ink);
+  min-height: var(--tap);
+  padding: 0 12px;
+  border-radius: 12px;
+}
+.reader-title:hover { background: var(--sage-soft); }
+.reader-title .caret { font-size: .7rem; color: var(--stone); }
+
+.reader-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 22px 20px calc(120px + var(--safe-b));
+  -webkit-overflow-scrolling: touch;
+}
+.reader-inner { max-width: var(--maxw); margin: 0 auto; }
+
+.reader-h {
+  font-family: Georgia, "Iowan Old Style", "Times New Roman", serif;
+  font-size: 1.6rem;
+  font-weight: 600;
+  text-align: center;
+  margin: 0 0 4px;
+}
+.reader-sub {
+  text-align: center;
+  font-size: .8rem;
+  color: var(--stone);
+  margin: 0 0 26px;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+/* texte au fil, numéros en exposant */
+.prose {
+  font-family: Georgia, "Iowan Old Style", "Times New Roman", serif;
+  font-size: var(--fs);
+  line-height: 1.85;
+  color: var(--ink);
+  text-align: left;
+}
+.prose .v {
+  cursor: pointer;
+  border-radius: 5px;
+  padding: 1px 0;
+  transition: background .15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.prose .v:hover { background: var(--sage-soft); }
+.prose .v.sel {
+  background: color-mix(in srgb, var(--sage) 26%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--sage) 26%, transparent);
+}
+.prose .vn {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: .62em;
+  font-weight: 700;
+  color: var(--clay);
+  vertical-align: super;
+  line-height: 0;
+  margin-right: 3px;
+  user-select: none;
+}
+.prose .v.hlj { background: #fdf0a8; }
+.prose .v.hlv { background: #cfeccb; }
+.prose .v.hlb { background: #cfe4f7; }
+.prose .v.hlr { background: #fbd5d0; }
+[data-theme="nuit"] .prose .v.hlj { background: #6b5d1f; }
+[data-theme="nuit"] .prose .v.hlv { background: #2f5330; }
+[data-theme="nuit"] .prose .v.hlb { background: #27455f; }
+[data-theme="nuit"] .prose .v.hlr { background: #63302c; }
+
+/* mode « un verset par ligne » */
+.prose.lines .v { display: block; margin-bottom: 12px; padding: 3px 4px; }
+
+/* barre d'actions sur sélection */
+.selbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 75;
+  padding: 12px 14px calc(14px + var(--safe-b));
+  background: var(--card);
+  border-top: 1px solid var(--line);
+  box-shadow: var(--shadow-lg);
+  animation: up .22s cubic-bezier(.2, .8, .3, 1);
+}
+.selbar .selref {
+  font-size: .82rem;
+  font-weight: 600;
+  color: var(--sage-deep);
+  margin-bottom: 10px;
+  text-align: center;
+}
+.selbar .acts { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.selbar .acts .btn { flex: 1; min-width: 74px; max-width: 120px; flex-direction: column; gap: 3px; height: auto; padding: 9px 6px; font-size: .72rem; }
+.selbar .acts .btn .ic { font-size: 1.15rem; }
+
+.hl-swatches { display: flex; gap: 10px; justify-content: center; margin-top: 11px; }
+.hl-sw {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  cursor: pointer;
+}
+.hl-sw[data-hl="j"] { background: #fdf0a8; }
+.hl-sw[data-hl="v"] { background: #cfeccb; }
+.hl-sw[data-hl="b"] { background: #cfe4f7; }
+.hl-sw[data-hl="r"] { background: #fbd5d0; }
+.hl-sw[data-hl=""] { background: var(--card); position: relative; }
+.hl-sw[data-hl=""]::after {
+  content: "✕";
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: .8rem;
+  color: var(--stone);
+}
+
+/* navigation chapitre suivant / précédent */
+.reader-nav { display: flex; gap: 10px; margin: 34px 0 10px; }
+.reader-nav .btn { flex: 1; }
+
+/* sélecteur livre / chapitre */
+.picker-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+.picker-tabs .btn { flex: 1; }
+.book-list { max-height: 52vh; overflow-y: auto; margin: 0 -4px; }
+.chap-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));
+  gap: 8px;
+  max-height: 52vh;
+  overflow-y: auto;
+}
+.chap-grid .btn { min-height: 46px; padding: 0; }
 </style>
 </head>
 <body>
@@ -933,6 +1103,9 @@ window.PLANS=[{"id":"bible-1an","n":"La Bible en 1 an","i":"📖","d":"Les 1 189
     plans: {},            // {planId: {faits: [n° de jour], debut: "AAAA-MM-JJ"}}
     reglages: { taille: 1, theme: "jour" },
     perso: null,          // {mode:"suivi"|"aleatoire", livre, chapitre|null, pos, vus}
+    surlignes: {},        // {"JHN 3:16": "j"|"v"|"b"|"r"}
+    lecture: null,        // {a, c} dernière position de lecture
+    proseLignes: false,   // affichage « un verset par ligne »
     lu: {},               // {"AAAA-MM-JJ": "REF"} — historique verset du jour
     serie: { dernier: null, jours: 0, record: 0 }
   };
@@ -1089,6 +1262,12 @@ window.PLANS=[{"id":"bible-1an","n":"La Bible en 1 an","i":"📖","d":"Les 1 189
     document.body.style.overflow = "hidden";
     return sh;
   }
+  document.addEventListener("keydown", function (e) {
+    if (e.key !== "Escape") return;
+    if ($(".sheet-bg")) { closeSheet(); return; }
+    if ($(".reader")) closeReader();
+  });
+
   function closeSheet() {
     var bg = $(".sheet-bg");
     if (bg) bg.remove();
@@ -1714,6 +1893,31 @@ window.PLANS=[{"id":"bible-1an","n":"La Bible en 1 an","i":"📖","d":"Les 1 189
       'autocomplete="off" style="margin-bottom:14px">';
     h += '<div id="qres"></div>';
     h += '<div id="explorer">';
+
+    // reprendre la lecture là où on s'est arrêté
+    var L = S.lecture;
+    if (L && BY_ABBR[L.a]) {
+      h += '<div class="card" style="margin-bottom:14px"><div class="card-title">📖 Reprendre la lecture</div>' +
+        '<div class="row" style="border:none;padding:0">' +
+        '<div class="grow"><div class="ttl">' + esc(bookName(L.a) + " " + L.c) + "</div>" +
+        '<div class="meta">' + esc(verseText(L.a + " " + L.c + ":1").slice(0, 64)) + "…</div></div>" +
+        '<button class="btn sm" data-read="' + L.a + " " + L.c + '">Lire ▸</button></div></div>';
+    }
+
+    // versets surlignés
+    var hlRefs = Object.keys(S.surlignes || {});
+    if (hlRefs.length) {
+      h += '<div class="card" style="margin-bottom:14px"><div class="card-title">🖍 Mes surlignages (' +
+        hlRefs.length + ")</div>";
+      hlRefs.slice(-6).reverse().forEach(function (r) {
+        h += '<div class="row"><div class="grow">' +
+          '<div class="ttl">' + esc(refLabel(r)) + "</div>" +
+          '<div class="meta">' + esc(verseText(r).slice(0, 70)) + "…</div></div>" +
+          '<button class="btn sm" data-open="' + r + '">Ouvrir</button></div>';
+      });
+      h += "</div>";
+    }
+
     h += '<div class="card-title" style="margin-top:18px">Ancien Testament</div><div class="grid three">';
     BOOKS.forEach(function (b) {
       if (b.t === 0) h += '<button class="tile" style="min-height:56px" data-book="' + b.a + '">' +
@@ -1782,43 +1986,229 @@ window.PLANS=[{"id":"bible-1an","n":"La Bible en 1 an","i":"📖","d":"Les 1 189
     box.innerHTML = h;
   }
 
-  function openChapter(abbr, chap, highlight) {
+  // --- Lecteur plein écran -------------------------------------------------
+  var RD = { a: null, c: 1, sel: [] };
+
+  function closeReader() {
+    var r = $(".reader");
+    if (r) r.remove();
+    document.body.style.overflow = "";
+    var sb = $(".selbar");
+    if (sb) sb.remove();
+  }
+
+  function openReader(abbr, chap, highlight) {
     inflate();
     var b = BY_ABBR[abbr];
     if (!b) return;
     chap = Math.min(Math.max(1, chap || 1), b.c.length);
+    RD = { a: abbr, c: chap, sel: [] };
     explorerState = { book: abbr, chap: chap };
-    var ch = b.c[chap - 1];
+    S.lecture = { a: abbr, c: chap };
+    save();
 
-    var h = '<div class="scroll-x" style="margin:0 0 12px;padding:0">';
-    for (var i = 1; i <= b.c.length; i++) {
-      h += '<button class="btn sm' + (i === chap ? " on" : "") + '" data-chap="' + i + '">' + i + "</button>";
-    }
-    h += "</div>";
-    ch.forEach(function (t, i) {
-      var ref = abbr + " " + chap + ":" + (i + 1);
-      h += '<div class="verse-line' + (highlight === i + 1 ? " hl" : "") + '" id="v' + (i + 1) + '" data-vref="' + ref + '">' +
-        '<span class="vn">' + (i + 1) + "</span>" +
-        '<span class="vt">' + esc(t) + "</span></div>";
-    });
-    h += '<div style="display:flex;gap:8px;margin-top:18px">';
-    if (chap > 1) h += '<button class="btn" style="flex:1" data-chap="' + (chap - 1) + '">← Ch. ' + (chap - 1) + "</button>";
-    if (chap < b.c.length) h += '<button class="btn" style="flex:1" data-chap="' + (chap + 1) + '">Ch. ' + (chap + 1) + " →</button>";
-    h += "</div>";
+    closeSheet();
+    closeReader();
 
-    var sh = sheet(b.n + " " + chap, h);
-    sh.addEventListener("click", function (e) {
-      var c = e.target.closest("[data-chap]");
-      if (c) { openChapter(abbr, +c.dataset.chap); return; }
-      var line = e.target.closest("[data-vref]");
-      if (line) verseMenu(line.dataset.vref);
+    var r = el('<div class="reader" role="dialog" aria-modal="true" aria-label="Lecture de la Bible">' +
+      '<div class="reader-top">' +
+      '<button class="icon-btn" id="rd-close" aria-label="Fermer la lecture">✕</button>' +
+      '<button class="reader-title" id="rd-pick" aria-label="Choisir le livre et le chapitre">' +
+      '<span id="rd-name"></span><span class="caret">▼</span></button>' +
+      '<button class="icon-btn" id="rd-lines" aria-label="Changer la présentation" title="Présentation">☰</button>' +
+      "</div>" +
+      '<div class="reader-body" id="rd-body"><div class="reader-inner" id="rd-inner"></div></div>' +
+      "</div>");
+    document.body.appendChild(r);
+    document.body.style.overflow = "hidden";
+
+    r.addEventListener("click", function (e) {
+      if (e.target.closest("#rd-close")) { closeReader(); return; }
+      if (e.target.closest("#rd-pick")) { pickerSheet(); return; }
+      if (e.target.closest("#rd-lines")) {
+        S.proseLignes = !S.proseLignes;
+        save();
+        paintReader();
+        toast(S.proseLignes ? "Un verset par ligne" : "Texte au fil");
+        return;
+      }
+      var nav = e.target.closest("[data-rdchap]");
+      if (nav) { openReader(RD.a, +nav.dataset.rdchap); return; }
+      var v = e.target.closest(".v");
+      if (v) { toggleSel(+v.dataset.n); return; }
+      // clic dans le vide : on désélectionne
+      if (RD.sel.length && !e.target.closest(".selbar")) clearSel();
     });
+
+    paintReader();
     if (highlight) {
       setTimeout(function () {
-        var t = $("#v" + highlight, sh);
+        var t = $("#rv" + highlight, r);
         if (t) t.scrollIntoView({ block: "center" });
-      }, 60);
+        toggleSel(highlight);
+      }, 50);
     }
+  }
+
+  function paintReader() {
+    var b = BY_ABBR[RD.a];
+    var ch = b.c[RD.c - 1];
+    $("#rd-name").textContent = b.n + " " + RD.c;
+
+    var h = '<h1 class="reader-h">' + esc(b.n) + " " + RD.c + "</h1>";
+    h += '<p class="reader-sub">Louis Segond 1910 · ' + ch.length + " versets</p>";
+    h += '<div class="prose' + (S.proseLignes ? " lines" : "") + '" id="rd-prose">';
+    ch.forEach(function (t, i) {
+      var n = i + 1;
+      var ref = RD.a + " " + RD.c + ":" + n;
+      var hl = S.surlignes[ref];
+      h += '<span class="v' + (hl ? " hl" + hl : "") + '" id="rv' + n + '" data-n="' + n +
+        '" data-vref="' + ref + '"><span class="vn">' + n + "</span>" + esc(t) + "</span> ";
+    });
+    h += "</div>";
+
+    h += '<div class="reader-nav">';
+    if (RD.c > 1) h += '<button class="btn" data-rdchap="' + (RD.c - 1) + '">← ' + esc(b.n) + " " + (RD.c - 1) + "</button>";
+    if (RD.c < b.c.length) h += '<button class="btn" data-rdchap="' + (RD.c + 1) + '">' + esc(b.n) + " " + (RD.c + 1) + " →</button>";
+    h += "</div>";
+
+    $("#rd-inner").innerHTML = h;
+    $("#rd-body").scrollTop = 0;
+    RD.sel = [];
+    renderSelbar();
+  }
+
+  // --- Sélection de versets -------------------------------------------------
+  function toggleSel(n) {
+    var i = RD.sel.indexOf(n);
+    if (i === -1) RD.sel.push(n); else RD.sel.splice(i, 1);
+    RD.sel.sort(function (a, b) { return a - b; });
+    $$(".prose .v").forEach(function (v) {
+      v.classList.toggle("sel", RD.sel.indexOf(+v.dataset.n) !== -1);
+    });
+    renderSelbar();
+  }
+  function clearSel() {
+    RD.sel = [];
+    $$(".prose .v").forEach(function (v) { v.classList.remove("sel"); });
+    renderSelbar();
+  }
+
+  // Référence compacte de la sélection : « Jean 3:16-18 »
+  function selRef() {
+    if (!RD.sel.length) return null;
+    var a = RD.sel[0], z = RD.sel[RD.sel.length - 1];
+    var contigu = (z - a + 1) === RD.sel.length;
+    return RD.a + " " + RD.c + ":" + (contigu && z !== a ? a + "-" + z : a);
+  }
+  function selTexte() {
+    var b = BY_ABBR[RD.a];
+    return RD.sel.map(function (n) { return b.c[RD.c - 1][n - 1]; }).join(" ");
+  }
+
+  function renderSelbar() {
+    var old = $(".selbar");
+    if (old) old.remove();
+    if (!RD.sel.length) return;
+    var ref = selRef();
+    var txt = selTexte();
+    var bar = el('<div class="selbar">' +
+      '<div class="selref">' + esc(refLabel(ref)) +
+      (RD.sel.length > 1 ? " · " + RD.sel.length + " versets" : "") + "</div>" +
+      '<div class="acts">' +
+      '<button class="btn sm" data-speak="' + esc(txt) + '"><span class="ic">🔊</span>Écouter</button>' +
+      '<button class="btn sm" data-fav="' + ref + '"><span class="ic">' +
+        (isFav(ref) ? "★" : "☆") + "</span>Favori</button>" +
+      '<button class="btn sm" data-note="' + ref + '"><span class="ic">✍️</span>Noter</button>' +
+      '<button class="btn sm" data-share="' + ref + '"><span class="ic">↗</span>Partager</button>' +
+      '<button class="btn sm" data-copy="' + esc("« " + txt + " » — " + refLabel(ref)) +
+        '"><span class="ic">⧉</span>Copier</button>' +
+      "</div>" +
+      '<div class="hl-swatches">' +
+      ["j", "v", "b", "r", ""].map(function (c) {
+        return '<button class="hl-sw" data-hl="' + c + '" aria-label="' +
+          (c ? "Surligner" : "Retirer le surlignage") + '"></button>';
+      }).join("") +
+      "</div></div>");
+    document.body.appendChild(bar);
+    bar.addEventListener("click", function (e) {
+      var sw = e.target.closest(".hl-sw");
+      if (!sw) return;
+      var couleur = sw.dataset.hl;
+      RD.sel.forEach(function (n) {
+        var r = RD.a + " " + RD.c + ":" + n;
+        if (couleur) S.surlignes[r] = couleur;
+        else delete S.surlignes[r];
+      });
+      save();
+      var sel = RD.sel.slice();
+      paintReader();
+      sel.forEach(function (n) {
+        var v = $("#rv" + n);
+        if (v) v.classList.add("sel");
+      });
+      RD.sel = sel;
+      renderSelbar();
+      toast(couleur ? "Surligné" : "Surlignage retiré");
+    });
+  }
+
+  // --- Sélecteur livre / chapitre ------------------------------------------
+  function pickerSheet(mode) {
+    inflate();
+    var sh = sheet("", '<div class="picker-tabs">' +
+      '<button class="btn sm" data-pk="livres">Livres</button>' +
+      '<button class="btn sm" data-pk="chapitres">Chapitres</button></div>' +
+      '<div id="pk-body"></div>');
+    var etat = mode || "livres";
+    var choisi = RD.a || "GEN";
+
+    function peindre() {
+      $$("[data-pk]", sh).forEach(function (b) {
+        b.classList.toggle("on", b.dataset.pk === etat);
+      });
+      var h = "";
+      if (etat === "livres") {
+        h += '<div class="book-list">';
+        [0, 1].forEach(function (t) {
+          h += '<div class="card-title" style="margin:10px 0 6px">' +
+            (t === 0 ? "Ancien Testament" : "Nouveau Testament") + "</div>";
+          BOOKS.forEach(function (b) {
+            if (b.t !== t) return;
+            h += '<div class="row" data-pkbook="' + b.a + '"><div class="grow">' +
+              '<div class="ttl">' + esc(b.n) + "</div>" +
+              '<div class="meta">' + b.c.length + " chapitre" + (b.c.length > 1 ? "s" : "") + "</div></div>" +
+              '<span class="chev">›</span></div>';
+          });
+        });
+        h += "</div>";
+      } else {
+        var b = BY_ABBR[choisi];
+        h += '<div class="card-title" style="margin:0 0 10px">' + esc(b.n) + "</div>";
+        h += '<div class="chap-grid">';
+        for (var i = 1; i <= b.c.length; i++) {
+          h += '<button class="btn sm' + (choisi === RD.a && i === RD.c ? " on" : "") +
+            '" data-pkchap="' + i + '">' + i + "</button>";
+        }
+        h += "</div>";
+      }
+      $("#pk-body", sh).innerHTML = h;
+    }
+
+    sh.addEventListener("click", function (e) {
+      var t = e.target.closest("[data-pk]");
+      if (t) { etat = t.dataset.pk; peindre(); return; }
+      var bk = e.target.closest("[data-pkbook]");
+      if (bk) { choisi = bk.dataset.pkbook; etat = "chapitres"; peindre(); return; }
+      var cp = e.target.closest("[data-pkchap]");
+      if (cp) { closeSheet(); openReader(choisi, +cp.dataset.pkchap); }
+    });
+    peindre();
+  }
+
+  // Toute ouverture de chapitre passe par le lecteur plein écran
+  function openChapter(abbr, chap, highlight) {
+    openReader(abbr, chap, highlight);
   }
 
   function verseMenu(ref) {
@@ -1929,7 +2319,7 @@ window.PLANS=[{"id":"bible-1an","n":"La Bible en 1 an","i":"📖","d":"Les 1 189
   document.addEventListener("click", function (e) {
     var t = e.target.closest("[data-tab],[data-fav],[data-note],[data-share],[data-speak]," +
       "[data-copy],[data-close],[data-plan],[data-theme],[data-book],[data-open]," +
-      "[data-off],[data-size],[data-mode2],[data-ndel],[data-pstep],[data-pmode]");
+      "[data-off],[data-size],[data-mode2],[data-ndel],[data-pstep],[data-pmode],[data-read]");
     if (!t) return;
 
     if (t.hasAttribute("data-tab")) {
@@ -1940,7 +2330,9 @@ window.PLANS=[{"id":"bible-1an","n":"La Bible en 1 an","i":"📖","d":"Les 1 189
     } else if (t.hasAttribute("data-fav")) {
       toggleFav(t.dataset.fav);
       var sh = t.closest(".sheet");
+      var inBar = t.closest(".selbar");
       render();
+      if (inBar) { renderSelbar(); return; }
       if (sh) closeSheet();
     } else if (t.hasAttribute("data-note")) {
       noteSheet(t.dataset.note || null);
@@ -1956,6 +2348,9 @@ window.PLANS=[{"id":"bible-1an","n":"La Bible en 1 an","i":"📖","d":"Les 1 189
       openPlan(t.dataset.plan);
     } else if (t.hasAttribute("data-theme")) {
       openTheme(t.dataset.theme);
+    } else if (t.hasAttribute("data-read")) {
+      var pr = parseRef(t.dataset.read);
+      if (pr) openReader(pr.a, pr.c);
     } else if (t.hasAttribute("data-book")) {
       openChapter(t.dataset.book, 1);
     } else if (t.hasAttribute("data-open")) {

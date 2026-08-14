@@ -78,6 +78,9 @@
     plans: {},            // {planId: {faits: [n° de jour], debut: "AAAA-MM-JJ"}}
     reglages: { taille: 1, theme: "jour" },
     perso: null,          // {mode:"suivi"|"aleatoire", livre, chapitre|null, pos, vus}
+    surlignes: {},        // {"JHN 3:16": "j"|"v"|"b"|"r"}
+    lecture: null,        // {a, c} dernière position de lecture
+    proseLignes: false,   // affichage « un verset par ligne »
     lu: {},               // {"AAAA-MM-JJ": "REF"} — historique verset du jour
     serie: { dernier: null, jours: 0, record: 0 }
   };
@@ -234,6 +237,12 @@
     document.body.style.overflow = "hidden";
     return sh;
   }
+  document.addEventListener("keydown", function (e) {
+    if (e.key !== "Escape") return;
+    if ($(".sheet-bg")) { closeSheet(); return; }
+    if ($(".reader")) closeReader();
+  });
+
   function closeSheet() {
     var bg = $(".sheet-bg");
     if (bg) bg.remove();
@@ -859,6 +868,31 @@
       'autocomplete="off" style="margin-bottom:14px">';
     h += '<div id="qres"></div>';
     h += '<div id="explorer">';
+
+    // reprendre la lecture là où on s'est arrêté
+    var L = S.lecture;
+    if (L && BY_ABBR[L.a]) {
+      h += '<div class="card" style="margin-bottom:14px"><div class="card-title">📖 Reprendre la lecture</div>' +
+        '<div class="row" style="border:none;padding:0">' +
+        '<div class="grow"><div class="ttl">' + esc(bookName(L.a) + " " + L.c) + "</div>" +
+        '<div class="meta">' + esc(verseText(L.a + " " + L.c + ":1").slice(0, 64)) + "…</div></div>" +
+        '<button class="btn sm" data-read="' + L.a + " " + L.c + '">Lire ▸</button></div></div>';
+    }
+
+    // versets surlignés
+    var hlRefs = Object.keys(S.surlignes || {});
+    if (hlRefs.length) {
+      h += '<div class="card" style="margin-bottom:14px"><div class="card-title">🖍 Mes surlignages (' +
+        hlRefs.length + ")</div>";
+      hlRefs.slice(-6).reverse().forEach(function (r) {
+        h += '<div class="row"><div class="grow">' +
+          '<div class="ttl">' + esc(refLabel(r)) + "</div>" +
+          '<div class="meta">' + esc(verseText(r).slice(0, 70)) + "…</div></div>" +
+          '<button class="btn sm" data-open="' + r + '">Ouvrir</button></div>';
+      });
+      h += "</div>";
+    }
+
     h += '<div class="card-title" style="margin-top:18px">Ancien Testament</div><div class="grid three">';
     BOOKS.forEach(function (b) {
       if (b.t === 0) h += '<button class="tile" style="min-height:56px" data-book="' + b.a + '">' +
@@ -927,43 +961,229 @@
     box.innerHTML = h;
   }
 
-  function openChapter(abbr, chap, highlight) {
+  // --- Lecteur plein écran -------------------------------------------------
+  var RD = { a: null, c: 1, sel: [] };
+
+  function closeReader() {
+    var r = $(".reader");
+    if (r) r.remove();
+    document.body.style.overflow = "";
+    var sb = $(".selbar");
+    if (sb) sb.remove();
+  }
+
+  function openReader(abbr, chap, highlight) {
     inflate();
     var b = BY_ABBR[abbr];
     if (!b) return;
     chap = Math.min(Math.max(1, chap || 1), b.c.length);
+    RD = { a: abbr, c: chap, sel: [] };
     explorerState = { book: abbr, chap: chap };
-    var ch = b.c[chap - 1];
+    S.lecture = { a: abbr, c: chap };
+    save();
 
-    var h = '<div class="scroll-x" style="margin:0 0 12px;padding:0">';
-    for (var i = 1; i <= b.c.length; i++) {
-      h += '<button class="btn sm' + (i === chap ? " on" : "") + '" data-chap="' + i + '">' + i + "</button>";
-    }
-    h += "</div>";
-    ch.forEach(function (t, i) {
-      var ref = abbr + " " + chap + ":" + (i + 1);
-      h += '<div class="verse-line' + (highlight === i + 1 ? " hl" : "") + '" id="v' + (i + 1) + '" data-vref="' + ref + '">' +
-        '<span class="vn">' + (i + 1) + "</span>" +
-        '<span class="vt">' + esc(t) + "</span></div>";
-    });
-    h += '<div style="display:flex;gap:8px;margin-top:18px">';
-    if (chap > 1) h += '<button class="btn" style="flex:1" data-chap="' + (chap - 1) + '">← Ch. ' + (chap - 1) + "</button>";
-    if (chap < b.c.length) h += '<button class="btn" style="flex:1" data-chap="' + (chap + 1) + '">Ch. ' + (chap + 1) + " →</button>";
-    h += "</div>";
+    closeSheet();
+    closeReader();
 
-    var sh = sheet(b.n + " " + chap, h);
-    sh.addEventListener("click", function (e) {
-      var c = e.target.closest("[data-chap]");
-      if (c) { openChapter(abbr, +c.dataset.chap); return; }
-      var line = e.target.closest("[data-vref]");
-      if (line) verseMenu(line.dataset.vref);
+    var r = el('<div class="reader" role="dialog" aria-modal="true" aria-label="Lecture de la Bible">' +
+      '<div class="reader-top">' +
+      '<button class="icon-btn" id="rd-close" aria-label="Fermer la lecture">✕</button>' +
+      '<button class="reader-title" id="rd-pick" aria-label="Choisir le livre et le chapitre">' +
+      '<span id="rd-name"></span><span class="caret">▼</span></button>' +
+      '<button class="icon-btn" id="rd-lines" aria-label="Changer la présentation" title="Présentation">☰</button>' +
+      "</div>" +
+      '<div class="reader-body" id="rd-body"><div class="reader-inner" id="rd-inner"></div></div>' +
+      "</div>");
+    document.body.appendChild(r);
+    document.body.style.overflow = "hidden";
+
+    r.addEventListener("click", function (e) {
+      if (e.target.closest("#rd-close")) { closeReader(); return; }
+      if (e.target.closest("#rd-pick")) { pickerSheet(); return; }
+      if (e.target.closest("#rd-lines")) {
+        S.proseLignes = !S.proseLignes;
+        save();
+        paintReader();
+        toast(S.proseLignes ? "Un verset par ligne" : "Texte au fil");
+        return;
+      }
+      var nav = e.target.closest("[data-rdchap]");
+      if (nav) { openReader(RD.a, +nav.dataset.rdchap); return; }
+      var v = e.target.closest(".v");
+      if (v) { toggleSel(+v.dataset.n); return; }
+      // clic dans le vide : on désélectionne
+      if (RD.sel.length && !e.target.closest(".selbar")) clearSel();
     });
+
+    paintReader();
     if (highlight) {
       setTimeout(function () {
-        var t = $("#v" + highlight, sh);
+        var t = $("#rv" + highlight, r);
         if (t) t.scrollIntoView({ block: "center" });
-      }, 60);
+        toggleSel(highlight);
+      }, 50);
     }
+  }
+
+  function paintReader() {
+    var b = BY_ABBR[RD.a];
+    var ch = b.c[RD.c - 1];
+    $("#rd-name").textContent = b.n + " " + RD.c;
+
+    var h = '<h1 class="reader-h">' + esc(b.n) + " " + RD.c + "</h1>";
+    h += '<p class="reader-sub">Louis Segond 1910 · ' + ch.length + " versets</p>";
+    h += '<div class="prose' + (S.proseLignes ? " lines" : "") + '" id="rd-prose">';
+    ch.forEach(function (t, i) {
+      var n = i + 1;
+      var ref = RD.a + " " + RD.c + ":" + n;
+      var hl = S.surlignes[ref];
+      h += '<span class="v' + (hl ? " hl" + hl : "") + '" id="rv' + n + '" data-n="' + n +
+        '" data-vref="' + ref + '"><span class="vn">' + n + "</span>" + esc(t) + "</span> ";
+    });
+    h += "</div>";
+
+    h += '<div class="reader-nav">';
+    if (RD.c > 1) h += '<button class="btn" data-rdchap="' + (RD.c - 1) + '">← ' + esc(b.n) + " " + (RD.c - 1) + "</button>";
+    if (RD.c < b.c.length) h += '<button class="btn" data-rdchap="' + (RD.c + 1) + '">' + esc(b.n) + " " + (RD.c + 1) + " →</button>";
+    h += "</div>";
+
+    $("#rd-inner").innerHTML = h;
+    $("#rd-body").scrollTop = 0;
+    RD.sel = [];
+    renderSelbar();
+  }
+
+  // --- Sélection de versets -------------------------------------------------
+  function toggleSel(n) {
+    var i = RD.sel.indexOf(n);
+    if (i === -1) RD.sel.push(n); else RD.sel.splice(i, 1);
+    RD.sel.sort(function (a, b) { return a - b; });
+    $$(".prose .v").forEach(function (v) {
+      v.classList.toggle("sel", RD.sel.indexOf(+v.dataset.n) !== -1);
+    });
+    renderSelbar();
+  }
+  function clearSel() {
+    RD.sel = [];
+    $$(".prose .v").forEach(function (v) { v.classList.remove("sel"); });
+    renderSelbar();
+  }
+
+  // Référence compacte de la sélection : « Jean 3:16-18 »
+  function selRef() {
+    if (!RD.sel.length) return null;
+    var a = RD.sel[0], z = RD.sel[RD.sel.length - 1];
+    var contigu = (z - a + 1) === RD.sel.length;
+    return RD.a + " " + RD.c + ":" + (contigu && z !== a ? a + "-" + z : a);
+  }
+  function selTexte() {
+    var b = BY_ABBR[RD.a];
+    return RD.sel.map(function (n) { return b.c[RD.c - 1][n - 1]; }).join(" ");
+  }
+
+  function renderSelbar() {
+    var old = $(".selbar");
+    if (old) old.remove();
+    if (!RD.sel.length) return;
+    var ref = selRef();
+    var txt = selTexte();
+    var bar = el('<div class="selbar">' +
+      '<div class="selref">' + esc(refLabel(ref)) +
+      (RD.sel.length > 1 ? " · " + RD.sel.length + " versets" : "") + "</div>" +
+      '<div class="acts">' +
+      '<button class="btn sm" data-speak="' + esc(txt) + '"><span class="ic">🔊</span>Écouter</button>' +
+      '<button class="btn sm" data-fav="' + ref + '"><span class="ic">' +
+        (isFav(ref) ? "★" : "☆") + "</span>Favori</button>" +
+      '<button class="btn sm" data-note="' + ref + '"><span class="ic">✍️</span>Noter</button>' +
+      '<button class="btn sm" data-share="' + ref + '"><span class="ic">↗</span>Partager</button>' +
+      '<button class="btn sm" data-copy="' + esc("« " + txt + " » — " + refLabel(ref)) +
+        '"><span class="ic">⧉</span>Copier</button>' +
+      "</div>" +
+      '<div class="hl-swatches">' +
+      ["j", "v", "b", "r", ""].map(function (c) {
+        return '<button class="hl-sw" data-hl="' + c + '" aria-label="' +
+          (c ? "Surligner" : "Retirer le surlignage") + '"></button>';
+      }).join("") +
+      "</div></div>");
+    document.body.appendChild(bar);
+    bar.addEventListener("click", function (e) {
+      var sw = e.target.closest(".hl-sw");
+      if (!sw) return;
+      var couleur = sw.dataset.hl;
+      RD.sel.forEach(function (n) {
+        var r = RD.a + " " + RD.c + ":" + n;
+        if (couleur) S.surlignes[r] = couleur;
+        else delete S.surlignes[r];
+      });
+      save();
+      var sel = RD.sel.slice();
+      paintReader();
+      sel.forEach(function (n) {
+        var v = $("#rv" + n);
+        if (v) v.classList.add("sel");
+      });
+      RD.sel = sel;
+      renderSelbar();
+      toast(couleur ? "Surligné" : "Surlignage retiré");
+    });
+  }
+
+  // --- Sélecteur livre / chapitre ------------------------------------------
+  function pickerSheet(mode) {
+    inflate();
+    var sh = sheet("", '<div class="picker-tabs">' +
+      '<button class="btn sm" data-pk="livres">Livres</button>' +
+      '<button class="btn sm" data-pk="chapitres">Chapitres</button></div>' +
+      '<div id="pk-body"></div>');
+    var etat = mode || "livres";
+    var choisi = RD.a || "GEN";
+
+    function peindre() {
+      $$("[data-pk]", sh).forEach(function (b) {
+        b.classList.toggle("on", b.dataset.pk === etat);
+      });
+      var h = "";
+      if (etat === "livres") {
+        h += '<div class="book-list">';
+        [0, 1].forEach(function (t) {
+          h += '<div class="card-title" style="margin:10px 0 6px">' +
+            (t === 0 ? "Ancien Testament" : "Nouveau Testament") + "</div>";
+          BOOKS.forEach(function (b) {
+            if (b.t !== t) return;
+            h += '<div class="row" data-pkbook="' + b.a + '"><div class="grow">' +
+              '<div class="ttl">' + esc(b.n) + "</div>" +
+              '<div class="meta">' + b.c.length + " chapitre" + (b.c.length > 1 ? "s" : "") + "</div></div>" +
+              '<span class="chev">›</span></div>';
+          });
+        });
+        h += "</div>";
+      } else {
+        var b = BY_ABBR[choisi];
+        h += '<div class="card-title" style="margin:0 0 10px">' + esc(b.n) + "</div>";
+        h += '<div class="chap-grid">';
+        for (var i = 1; i <= b.c.length; i++) {
+          h += '<button class="btn sm' + (choisi === RD.a && i === RD.c ? " on" : "") +
+            '" data-pkchap="' + i + '">' + i + "</button>";
+        }
+        h += "</div>";
+      }
+      $("#pk-body", sh).innerHTML = h;
+    }
+
+    sh.addEventListener("click", function (e) {
+      var t = e.target.closest("[data-pk]");
+      if (t) { etat = t.dataset.pk; peindre(); return; }
+      var bk = e.target.closest("[data-pkbook]");
+      if (bk) { choisi = bk.dataset.pkbook; etat = "chapitres"; peindre(); return; }
+      var cp = e.target.closest("[data-pkchap]");
+      if (cp) { closeSheet(); openReader(choisi, +cp.dataset.pkchap); }
+    });
+    peindre();
+  }
+
+  // Toute ouverture de chapitre passe par le lecteur plein écran
+  function openChapter(abbr, chap, highlight) {
+    openReader(abbr, chap, highlight);
   }
 
   function verseMenu(ref) {
@@ -1074,7 +1294,7 @@
   document.addEventListener("click", function (e) {
     var t = e.target.closest("[data-tab],[data-fav],[data-note],[data-share],[data-speak]," +
       "[data-copy],[data-close],[data-plan],[data-theme],[data-book],[data-open]," +
-      "[data-off],[data-size],[data-mode2],[data-ndel],[data-pstep],[data-pmode]");
+      "[data-off],[data-size],[data-mode2],[data-ndel],[data-pstep],[data-pmode],[data-read]");
     if (!t) return;
 
     if (t.hasAttribute("data-tab")) {
@@ -1085,7 +1305,9 @@
     } else if (t.hasAttribute("data-fav")) {
       toggleFav(t.dataset.fav);
       var sh = t.closest(".sheet");
+      var inBar = t.closest(".selbar");
       render();
+      if (inBar) { renderSelbar(); return; }
       if (sh) closeSheet();
     } else if (t.hasAttribute("data-note")) {
       noteSheet(t.dataset.note || null);
@@ -1101,6 +1323,9 @@
       openPlan(t.dataset.plan);
     } else if (t.hasAttribute("data-theme")) {
       openTheme(t.dataset.theme);
+    } else if (t.hasAttribute("data-read")) {
+      var pr = parseRef(t.dataset.read);
+      if (pr) openReader(pr.a, pr.c);
     } else if (t.hasAttribute("data-book")) {
       openChapter(t.dataset.book, 1);
     } else if (t.hasAttribute("data-open")) {

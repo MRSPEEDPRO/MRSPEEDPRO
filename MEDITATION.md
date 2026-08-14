@@ -37,6 +37,7 @@ Publiable tel quel sur GitHub Pages, Netlify, une clé USB ou envoyé par WhatsA
 | ⭐ **Favoris** | Vos versets marqués, retrouvés en un geste |
 | 🔍 **Recherche instantanée** | Dans les 31 170 versets, résultats surlignés |
 | 📚 **Explorateur** | Les 66 livres, chapitre par chapitre |
+| 📖 **Lecteur plein écran** | Lecture du texte au fil, typographie sérif et versets en exposant · touchez un verset (ou plusieurs à la suite) pour l'écouter, le mettre en favori, l'annoter, le partager ou le copier · **surlignage** en 4 couleurs conservé d'une session à l'autre · navigation chapitre par chapitre, sélecteur livre/chapitre, présentation « un verset par ligne », reprise là où vous vous êtes arrêté |
 | 🧭 **Guide de méditation** | La méthode en 5 étapes |
 | ⚙️ **Réglages** | Taille du texte · mode nuit |
 | ↗ **Partage en un clic** | WhatsApp, Facebook, Telegram, X, e-mail · verset pré-rempli · fonctionne même sans l'API de partage du navigateur |
@@ -67,7 +68,7 @@ Le code ne contient ni `fetch`, ni `XMLHttpRequest` — c'est vérifié par les 
 | `tools/parse_usfm.py` | Convertit les sources USFM en `bible_lsg.json` |
 | `tools/gen_content.py` | Génère et valide thèmes et versets du jour |
 | `build.py` | Assemble `index.html` |
-| `test_smoke.js` | 185 vérifications automatiques (jsdom) |
+| `test_smoke.js` | 258 vérifications automatiques (jsdom) |
 
 ---
 
@@ -102,7 +103,8 @@ maison, sans dépendance) les décompresse en mémoire en une fraction de second
 - l'exactitude du texte sur des versets témoins (Genèse 1:1, Jean 3:16, Psaume 23:1…)
 - 247 versets du jour sans doublon, rotation complète et déterministe
 - 19 thèmes / 266 versets · 11 plans · couverture exacte de la Bible par le plan 1 an
-- les 6 onglets, le journal, les favoris, la recherche, le partage, les réglages
+- les 7 onglets, le journal, les favoris, la recherche, le partage, les réglages
+- le lecteur plein écran : sélection de versets, surlignage persistant, navigation et reprise de lecture
 - la méditation personnalisée : suivi séquentiel, cycle, tirage aléatoire ≠ veille
 - l'autonomie du fichier : aucun script, style ou appel réseau externe
 

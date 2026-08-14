@@ -22,6 +22,7 @@
   --fs: 1rem;
   --maxw: 620px;
   --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-t: env(safe-area-inset-top, 0px);
 }
 
 [data-theme="nuit"] {
@@ -575,3 +576,172 @@ mark { background: color-mix(in srgb, var(--clay) 32%, transparent); color: inhe
   nav.tabs, .verse-actions, .top-actions, .btn { display: none !important; }
   .app { padding: 0; }
 }
+
+/* --- Lecteur plein écran (façon Bible) ----------------------------------- */
+
+.reader {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  background: var(--paper);
+  display: flex;
+  flex-direction: column;
+  animation: fade .18s ease;
+}
+
+.reader-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: calc(8px + var(--safe-t)) 12px 8px;
+  background: color-mix(in srgb, var(--paper) 92%, transparent);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--line);
+}
+.reader-title {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  justify-content: center;
+  font-family: Georgia, "Iowan Old Style", "Times New Roman", serif;
+  font-size: 1.02rem;
+  font-weight: 600;
+  color: var(--ink);
+  min-height: var(--tap);
+  padding: 0 12px;
+  border-radius: 12px;
+}
+.reader-title:hover { background: var(--sage-soft); }
+.reader-title .caret { font-size: .7rem; color: var(--stone); }
+
+.reader-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 22px 20px calc(120px + var(--safe-b));
+  -webkit-overflow-scrolling: touch;
+}
+.reader-inner { max-width: var(--maxw); margin: 0 auto; }
+
+.reader-h {
+  font-family: Georgia, "Iowan Old Style", "Times New Roman", serif;
+  font-size: 1.6rem;
+  font-weight: 600;
+  text-align: center;
+  margin: 0 0 4px;
+}
+.reader-sub {
+  text-align: center;
+  font-size: .8rem;
+  color: var(--stone);
+  margin: 0 0 26px;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+/* texte au fil, numéros en exposant */
+.prose {
+  font-family: Georgia, "Iowan Old Style", "Times New Roman", serif;
+  font-size: var(--fs);
+  line-height: 1.85;
+  color: var(--ink);
+  text-align: left;
+}
+.prose .v {
+  cursor: pointer;
+  border-radius: 5px;
+  padding: 1px 0;
+  transition: background .15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.prose .v:hover { background: var(--sage-soft); }
+.prose .v.sel {
+  background: color-mix(in srgb, var(--sage) 26%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--sage) 26%, transparent);
+}
+.prose .vn {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: .62em;
+  font-weight: 700;
+  color: var(--clay);
+  vertical-align: super;
+  line-height: 0;
+  margin-right: 3px;
+  user-select: none;
+}
+.prose .v.hlj { background: #fdf0a8; }
+.prose .v.hlv { background: #cfeccb; }
+.prose .v.hlb { background: #cfe4f7; }
+.prose .v.hlr { background: #fbd5d0; }
+[data-theme="nuit"] .prose .v.hlj { background: #6b5d1f; }
+[data-theme="nuit"] .prose .v.hlv { background: #2f5330; }
+[data-theme="nuit"] .prose .v.hlb { background: #27455f; }
+[data-theme="nuit"] .prose .v.hlr { background: #63302c; }
+
+/* mode « un verset par ligne » */
+.prose.lines .v { display: block; margin-bottom: 12px; padding: 3px 4px; }
+
+/* barre d'actions sur sélection */
+.selbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 75;
+  padding: 12px 14px calc(14px + var(--safe-b));
+  background: var(--card);
+  border-top: 1px solid var(--line);
+  box-shadow: var(--shadow-lg);
+  animation: up .22s cubic-bezier(.2, .8, .3, 1);
+}
+.selbar .selref {
+  font-size: .82rem;
+  font-weight: 600;
+  color: var(--sage-deep);
+  margin-bottom: 10px;
+  text-align: center;
+}
+.selbar .acts { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.selbar .acts .btn { flex: 1; min-width: 74px; max-width: 120px; flex-direction: column; gap: 3px; height: auto; padding: 9px 6px; font-size: .72rem; }
+.selbar .acts .btn .ic { font-size: 1.15rem; }
+
+.hl-swatches { display: flex; gap: 10px; justify-content: center; margin-top: 11px; }
+.hl-sw {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  cursor: pointer;
+}
+.hl-sw[data-hl="j"] { background: #fdf0a8; }
+.hl-sw[data-hl="v"] { background: #cfeccb; }
+.hl-sw[data-hl="b"] { background: #cfe4f7; }
+.hl-sw[data-hl="r"] { background: #fbd5d0; }
+.hl-sw[data-hl=""] { background: var(--card); position: relative; }
+.hl-sw[data-hl=""]::after {
+  content: "✕";
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: .8rem;
+  color: var(--stone);
+}
+
+/* navigation chapitre suivant / précédent */
+.reader-nav { display: flex; gap: 10px; margin: 34px 0 10px; }
+.reader-nav .btn { flex: 1; }
+
+/* sélecteur livre / chapitre */
+.picker-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+.picker-tabs .btn { flex: 1; }
+.book-list { max-height: 52vh; overflow-y: auto; margin: 0 -4px; }
+.chap-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));
+  gap: 8px;
+  max-height: 52vh;
+  overflow-y: auto;
+}
+.chap-grid .btn { min-height: 46px; padding: 0; }

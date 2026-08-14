@@ -527,14 +527,118 @@ ok(/env\(safe-area-inset-bottom/.test(html), "zone sûre iPhone prise en compte"
   ok(!document.getElementById("explorer").classList.contains("hide"),
     "explorateur réaffiché après recherche");
 
-  // lecture d'un chapitre
-  document.querySelector('[data-book="JHN"]').dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
-  const chap = document.querySelector(".sheet");
-  ok(!!chap, "chapitre ouvert depuis l'explorateur");
-  ok(/verse-line/.test(chap.innerHTML), "versets affichés");
-  eq(chap.querySelectorAll("[data-vref]").length, BOOKS.find(b => b.a === "JHN").c[0].length,
+  section("23. Lecteur plein écran");
+  const click = (sel) => document.querySelector(sel)
+    .dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+  const JHN = BOOKS.find(b => b.a === "JHN");
+
+  click('[data-book="JHN"]');
+  const rd = document.querySelector(".reader");
+  ok(!!rd, "le lecteur s'ouvre en plein écran depuis l'explorateur");
+  ok(!document.querySelector(".sheet"), "plus de modale étriquée pour lire");
+  eq(document.getElementById("rd-name").textContent, "Jean 1", "titre du chapitre en cours");
+  eq(rd.querySelectorAll(".prose .v").length, JHN.c[0].length,
     "tous les versets de Jean 1 affichés");
-  ok(chap.querySelectorAll("[data-chap]").length >= 21, "sélecteur des 21 chapitres");
+  ok(/<span class="vn">1<\/span>/.test(rd.innerHTML), "numéros de versets en exposant");
+  ok(/reader-h/.test(rd.innerHTML), "en-tête de chapitre");
+  ok(document.body.style.overflow === "hidden", "l'arrière-plan ne défile plus");
+
+  // sélection d'un verset -> barre d'actions
+  ok(!document.querySelector(".selbar"), "aucune barre d'action sans sélection");
+  click("#rv16");
+  let bar = document.querySelector(".selbar");
+  ok(!!bar, "toucher un verset ouvre la barre d'actions");
+  ok(/Jean 1:16/.test(bar.innerHTML), "référence du verset sélectionné");
+  ["data-speak", "data-fav", "data-note", "data-share", "data-copy"].forEach(a =>
+    ok(bar.querySelector("[" + a + "]"), "action disponible : " + a));
+  ok(document.querySelector("#rv16").classList.contains("sel"), "verset mis en évidence");
+
+  // sélection multiple contiguë
+  click("#rv17");
+  bar = document.querySelector(".selbar");
+  ok(/Jean 1:16-17/.test(bar.innerHTML), "sélection de plusieurs versets : plage 16-17");
+  ok(/2 versets/.test(bar.innerHTML), "nombre de versets sélectionnés");
+  const partage = bar.querySelector("[data-share]").dataset.share;
+  ok(MB.verseText(partage).length > MB.verseText("JHN 1:16").length,
+    "le partage porte sur les deux versets");
+
+  // désélection
+  click("#rv17");
+  ok(/Jean 1:16/.test(document.querySelector(".selbar").innerHTML), "retrait d'un verset de la sélection");
+  click("#rv16");
+  ok(!document.querySelector(".selbar"), "barre refermée quand plus rien n'est sélectionné");
+
+  section("24. Surlignage");
+  click("#rv12");
+  document.querySelector('.hl-sw[data-hl="j"]')
+    .dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+  eq(MB.state().surlignes["JHN 1:12"], "j", "surlignage jaune enregistré");
+  ok(document.querySelector("#rv12").classList.contains("hlj"), "verset surligné à l'écran");
+  document.querySelector('.hl-sw[data-hl="v"]')
+    .dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+  eq(MB.state().surlignes["JHN 1:12"], "v", "changement de couleur");
+  ok(document.querySelector("#rv12").classList.contains("hlv"), "nouvelle couleur appliquée");
+  document.querySelector('.hl-sw[data-hl=""]')
+    .dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+  ok(!("JHN 1:12" in MB.state().surlignes), "surlignage retiré");
+  ok(!document.querySelector("#rv12").className.includes("hl"), "couleur retirée à l'écran");
+
+  // persistance du surlignage d'un chapitre à l'autre
+  click("#rv14");
+  document.querySelector('.hl-sw[data-hl="b"]')
+    .dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+  click('[data-rdchap="2"]');
+  eq(document.getElementById("rd-name").textContent, "Jean 2", "passage au chapitre suivant");
+  click('[data-rdchap="1"]');
+  ok(document.querySelector("#rv14").classList.contains("hlb"),
+    "le surlignage est retrouvé au retour");
+
+  section("25. Navigation dans le lecteur");
+  ok(!!document.querySelector('[data-rdchap="2"]'), "bouton chapitre suivant");
+  ok(!document.querySelector('[data-rdchap="0"]'), "pas de chapitre 0 au premier chapitre");
+  click('[data-rdchap="2"]');
+  ok(!!document.querySelector('[data-rdchap="1"]'), "bouton chapitre précédent");
+  eq(MB.state().lecture.c, 2, "position de lecture mémorisée");
+
+  // présentation : un verset par ligne
+  click("#rd-lines");
+  ok(document.getElementById("rd-prose").classList.contains("lines"), "présentation en lignes");
+  eq(MB.state().proseLignes, true, "préférence enregistrée");
+  click("#rd-lines");
+  ok(!document.getElementById("rd-prose").classList.contains("lines"), "retour au texte au fil");
+
+  // sélecteur livre / chapitre
+  click("#rd-pick");
+  ok(!!document.querySelector(".sheet"), "sélecteur ouvert");
+  eq(document.querySelectorAll("[data-pkbook]").length, 66, "les 66 livres proposés");
+  document.querySelector('[data-pkbook="PSA"]')
+    .dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+  eq(document.querySelectorAll("[data-pkchap]").length, 150, "150 chapitres pour les Psaumes");
+  document.querySelector('[data-pkchap="23"]')
+    .dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+  eq(document.getElementById("rd-name").textContent, "Psaumes 23", "navigation vers Psaumes 23");
+  ok(/berger/.test(document.getElementById("rd-prose").textContent), "texte du Psaume 23 affiché");
+
+  // fermeture
+  click("#rd-close");
+  ok(!document.querySelector(".reader"), "le lecteur se ferme");
+  eq(document.body.style.overflow, "", "le défilement de la page est rendu");
+
+  section("26. Reprise de lecture");
+  clickTab("bible");
+  ok(/Reprendre la lecture/.test(document.getElementById("main").innerHTML),
+    "carte de reprise de lecture");
+  ok(/Psaumes 23/.test(document.getElementById("main").innerHTML), "dernière position affichée");
+  ok(/Mes surlignages/.test(document.getElementById("main").innerHTML),
+    "les surlignages sont regroupés dans l'onglet Bible");
+  click("[data-read]");
+  eq(document.getElementById("rd-name").textContent, "Psaumes 23", "la reprise rouvre le bon chapitre");
+  click("#rd-close");
+
+  // un verset du jour s'ouvre dans son contexte
+  clickTab("jour");
+  click("[data-share]");
+  document.querySelector(".sheet-bg").remove();
 
   console.log("\n" + "─".repeat(54));
   if (fail) {
