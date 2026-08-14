@@ -82,7 +82,8 @@
     lecture: null,        // {a, c} dernière position de lecture
     proseLignes: false,   // affichage « un verset par ligne »
     lu: {},               // {"AAAA-MM-JJ": "REF"} — historique verset du jour
-    serie: { dernier: null, jours: 0, record: 0 }
+    serie: { dernier: null, jours: 0, record: 0 },
+    profil: null          // {nom, avatar, heure|null, depuis:"AAAA-MM-JJ"}
   };
 
   var S = load();
@@ -361,6 +362,131 @@
     });
   }
 
+  // --- Profil local --------------------------------------------------------
+  // Aucune inscription en ligne : le profil vit uniquement dans ce navigateur.
+  var AVATARS = ["🌿", "🕊️", "🙏", "✝️", "🌻", "🔥", "⭐", "🌅", "🍃", "💛", "🌊", "🦋"];
+
+  function profil() { return S.profil; }
+
+  function saluer() {
+    var hh = new Date().getHours();
+    if (hh < 5) return "Belle nuit";
+    if (hh < 12) return "Bonjour";
+    if (hh < 18) return "Bon après-midi";
+    return "Bonsoir";
+  }
+
+  function prenom() {
+    return (S.profil && S.profil.nom) ? S.profil.nom : "";
+  }
+
+  function saveProfil(nom, avatar, heure) {
+    nom = String(nom || "").trim().slice(0, 24);
+    S.profil = {
+      nom: nom,
+      avatar: avatar || "🌿",
+      heure: heure || null,
+      depuis: (S.profil && S.profil.depuis) || ymd(new Date())
+    };
+    save();
+  }
+
+  // Écran d'accueil : proposé une seule fois, jamais bloquant.
+  function onboarding() {
+    var choix = { avatar: "🌿", heure: "" };
+    var el = document.createElement("div");
+    el.className = "onb";
+    var h = '<div class="onb-inner">';
+    h += '<div class="onb-logo">🌿</div>';
+    h += "<h1>Bienvenue</h1>";
+    h += '<p class="sub">Créons votre profil pour personnaliser vos méditations.<br>' +
+      "Tout reste sur cet appareil.</p>";
+    h += '<label class="lbl" for="onb-nom">Comment vous appelez-vous ?</label>';
+    h += '<input class="field" id="onb-nom" maxlength="24" autocomplete="given-name" ' +
+      'placeholder="Votre prénom">';
+    h += '<label class="lbl">Choisissez votre image</label><div class="ava-grid">';
+    AVATARS.forEach(function (a, i) {
+      h += '<button type="button" class="ava' + (i === 0 ? " on" : "") +
+        '" data-ava="' + a + '" aria-label="Avatar ' + a + '">' + a + "</button>";
+    });
+    h += "</div>";
+    h += '<label class="lbl" for="onb-h">Votre moment de méditation <span class="muted">(facultatif)</span></label>';
+    h += '<input class="field" id="onb-h" type="time" value="07:00">';
+    h += '<button class="btn primary block" id="onb-go" style="margin-top:22px">Commencer 🌿</button>';
+    h += '<button type="button" class="skip" id="onb-skip">Passer cette étape</button>';
+    h += '<p class="note">🔒 Aucune inscription en ligne, aucun mot de passe.<br>' +
+      "Vos données ne quittent jamais cet appareil.</p>";
+    h += "</div>";
+    el.innerHTML = h;
+    document.body.appendChild(el);
+
+    var nom = el.querySelector("#onb-nom");
+    setTimeout(function () { try { nom.focus(); } catch (e) {} }, 260);
+
+    el.addEventListener("click", function (e) {
+      var a = e.target.closest("[data-ava]");
+      if (a) {
+        choix.avatar = a.dataset.ava;
+        el.querySelectorAll(".ava").forEach(function (b) {
+          b.classList.toggle("on", b === a);
+        });
+        return;
+      }
+      if (e.target.closest("#onb-go")) {
+        var hv = el.querySelector("#onb-h").value;
+        saveProfil(nom.value, choix.avatar, hv || null);
+        el.remove();
+        render();
+        if (prenom()) toast("Bienvenue, " + prenom() + " 🌿");
+        return;
+      }
+      if (e.target.closest("#onb-skip")) {
+        saveProfil("", "🌿", null);
+        el.remove();
+        render();
+      }
+    });
+
+    nom.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") el.querySelector("#onb-go").click();
+    });
+  }
+
+  // Modification du profil depuis l'onglet « Plus »
+  function profilSheet() {
+    var p = S.profil || { nom: "", avatar: "🌿", heure: null };
+    var h = '<label class="lbl" for="pf-nom">Prénom</label>' +
+      '<input class="field" id="pf-nom" maxlength="24" value="' + esc(p.nom || "") +
+      '" placeholder="Votre prénom">';
+    h += '<label class="lbl">Image</label><div class="ava-grid">';
+    AVATARS.forEach(function (a) {
+      h += '<button type="button" class="ava' + (a === p.avatar ? " on" : "") +
+        '" data-ava="' + a + '">' + a + "</button>";
+    });
+    h += "</div>";
+    h += '<label class="lbl" for="pf-h">Moment de méditation</label>' +
+      '<input class="field" id="pf-h" type="time" value="' + esc(p.heure || "") + '">';
+    h += '<div style="display:flex;gap:8px;margin-top:18px">' +
+      '<button class="btn primary grow" id="pf-save">Enregistrer</button></div>';
+
+    var sh = sheet("Mon profil", h);
+    var av = p.avatar;
+    sh.addEventListener("click", function (e) {
+      var a = e.target.closest("[data-ava]");
+      if (a) {
+        av = a.dataset.ava;
+        sh.querySelectorAll(".ava").forEach(function (b) { b.classList.toggle("on", b === a); });
+        return;
+      }
+      if (e.target.closest("#pf-save")) {
+        saveProfil(sh.querySelector("#pf-nom").value, av, sh.querySelector("#pf-h").value || null);
+        closeSheet();
+        render();
+        toast("Profil enregistré ✓");
+      }
+    });
+  }
+
   // --- Série de jours ------------------------------------------------------
   function touchStreak() {
     var today = ymd(new Date());
@@ -390,6 +516,24 @@
     if (usePerso && offset === 0) markVu(ref);
 
     var h = "";
+
+    // salutation personnalisée (uniquement pour aujourd'hui)
+    if (offset === 0 && S.profil && S.profil.nom) {
+      var st = S.serie;
+      var sous = st.jours > 1
+        ? "<b>" + st.jours + " jours</b> de méditation d'affilée 🔥"
+        : "Que ce verset éclaire votre journée.";
+      h += '<div class="hello"><div class="hello-ava">' + esc(S.profil.avatar || "🌿") + "</div>" +
+        '<div class="hello-txt"><div class="h">' + esc(saluer() + ", " + S.profil.nom) + "</div>" +
+        '<div class="s">' + sous + "</div></div></div>";
+    }
+
+    // rappel doux de l'heure choisie
+    if (offset === 0 && S.profil && S.profil.heure && S.serie.dernier !== ymd(new Date())) {
+      h += '<div class="nudge"><span class="ic">⏰</span><div>Votre moment de méditation : <b>' +
+        esc(S.profil.heure) + "</b></div></div>";
+    }
+
     h += '<div class="card verse-card">';
     h += '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px">';
     h += '<span class="verse-date">' + esc(frDate(date)) + "</span>";
@@ -1200,7 +1344,26 @@
   }
 
   function viewPlus() {
-    var h = '<h2 class="section-h">Plus</h2><p class="section-sub">Favoris, guide et réglages.</p>';
+    var h = '<h2 class="section-h">Plus</h2><p class="section-sub">Profil, favoris, guide et réglages.</p>';
+
+    // --- profil ---
+    var pf = S.profil;
+    h += '<div class="card"><div class="card-title">👤 Mon profil</div><div class="prof">';
+    h += '<div class="big-ava">' + esc((pf && pf.avatar) || "🌿") + "</div>";
+    h += '<div class="grow" style="min-width:0">';
+    if (pf && pf.nom) {
+      h += '<div class="nm">' + esc(pf.nom) + "</div>";
+      var det = [];
+      if (pf.depuis) det.push("membre depuis le " + esc(pf.depuis.split("-").reverse().join("/")));
+      if (pf.heure) det.push("méditation à " + esc(pf.heure));
+      h += '<div class="mt">' + det.join(" · ") + "</div>";
+    } else {
+      h += '<div class="nm">Visiteur</div>' +
+        '<div class="mt">Ajoutez votre prénom pour personnaliser l\'accueil</div>';
+    }
+    h += "</div>";
+    h += '<button class="btn sm" id="prof-edit">' + (pf && pf.nom ? "Modifier" : "Créer") + "</button>";
+    h += "</div></div>";
 
     h += '<div class="card"><div class="card-title">★ Mes favoris (' + S.favoris.length + ")</div>";
     if (!S.favoris.length) {
@@ -1292,6 +1455,7 @@
 
   // --- Événements globaux --------------------------------------------------
   document.addEventListener("click", function (e) {
+    if (e.target.closest("#prof-edit")) { profilSheet(); return; }
     var t = e.target.closest("[data-tab],[data-fav],[data-note],[data-share],[data-speak]," +
       "[data-copy],[data-close],[data-plan],[data-theme],[data-book],[data-open]," +
       "[data-off],[data-size],[data-mode2],[data-ndel],[data-pstep],[data-pmode],[data-read]");
@@ -1404,8 +1568,8 @@
     }
     if (e.target.closest("#wipe")) {
       sheet("Tout effacer ?",
-        '<p class="muted" style="font-size:.92rem">Vos notes, favoris et progressions seront ' +
-        "définitivement supprimés de cet appareil.</p>" +
+        '<p class="muted" style="font-size:.92rem">Votre profil, vos notes, favoris, surlignages ' +
+        "et progressions seront définitivement supprimés de cet appareil.</p>" +
         '<div style="display:flex;gap:8px;margin-top:16px">' +
         '<button class="btn" style="flex:1" data-close>Annuler</button>' +
         '<button class="btn primary" id="wipe2" style="flex:1">Tout effacer</button></div>');
@@ -1417,6 +1581,7 @@
       applySettings();
       render();
       toast("Données effacées");
+      onboarding();
     }
     if (e.target.closest("#dark-toggle")) {
       S.reglages.theme = S.reglages.theme === "nuit" ? "jour" : "nuit";
@@ -1441,6 +1606,7 @@
     if (l) l.remove();
     $("#app").classList.remove("hide");
     render();
+    if (!S.profil) onboarding();
     if ("speechSynthesis" in window) window.speechSynthesis.getVoices();
   }
 
@@ -1453,6 +1619,7 @@
     parseRef: parseRef, refLabel: refLabel, verseText: verseText,
     dailyRefFor: dailyRefFor, persoRefFor: persoRefFor,
     inflate: inflate, ymd: ymd, frDate: frDate,
+    saluer: saluer, avatars: function () { return AVATARS; },
     state: function () { return S; }
   };
 })();

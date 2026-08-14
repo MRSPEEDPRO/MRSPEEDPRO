@@ -487,7 +487,7 @@ section("20. Persistance locale");
 const stored = window.localStorage.getItem("meditation-biblique");
 ok(!!stored, "données enregistrées dans localStorage");
 const parsed = JSON.parse(stored);
-["favoris", "notes", "plans", "reglages", "serie"].forEach(k => {
+["favoris", "notes", "plans", "reglages", "serie", "profil", "surlignes"].forEach(k => {
   ok(k in parsed, `clé « ${k} » persistée`);
 });
 ok(MB.state().serie.jours >= 1, "série de jours démarrée");
@@ -639,6 +639,99 @@ ok(/env\(safe-area-inset-bottom/.test(html), "zone sûre iPhone prise en compte"
   clickTab("jour");
   click("[data-share]");
   document.querySelector(".sheet-bg").remove();
+
+  section("27. Profil : écran de bienvenue");
+  const onb = document.querySelector(".onb");
+  ok(!!onb, "l'écran de bienvenue s'affiche au tout premier lancement");
+  ok(/Bienvenue/.test(onb.textContent), "message d'accueil");
+  ok(!!onb.querySelector("#onb-nom"), "champ prénom");
+  eq(onb.querySelectorAll(".ava").length, 12, "12 images de profil proposées");
+  eq(onb.querySelector("#onb-h").type, "time", "choix de l'heure de méditation");
+  ok(!!onb.querySelector("#onb-skip"), "l'étape peut être passée");
+  ok(/aucun mot de passe|Aucune inscription en ligne/i.test(onb.textContent),
+    "l'écran précise qu'il n'y a pas de compte en ligne");
+  ok(/ne quittent jamais cet appareil/i.test(onb.textContent), "promesse de confidentialité");
+  eq(MB.state().profil, null, "aucun profil tant que rien n'est validé");
+
+  // création du profil
+  onb.querySelector("#onb-nom").value = "  Sarah  ";
+  onb.querySelector('[data-ava="🕊️"]')
+    .dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+  ok(onb.querySelector('[data-ava="🕊️"]').classList.contains("on"), "image sélectionnée");
+  onb.querySelector("#onb-h").value = "06:30";
+  onb.querySelector("#onb-go").dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+
+  const P = MB.state().profil;
+  ok(!!P, "profil créé");
+  eq(P.nom, "Sarah", "prénom enregistré et nettoyé des espaces");
+  eq(P.avatar, "🕊️", "image enregistrée");
+  eq(P.heure, "06:30", "heure de méditation enregistrée");
+  ok(/^\d{4}-\d{2}-\d{2}$/.test(P.depuis), "date d'inscription enregistrée");
+  ok(!document.querySelector(".onb"), "l'écran de bienvenue se referme");
+
+  section("28. Accueil personnalisé");
+  const jour = clickTab("jour");
+  ok(/hello/.test(jour), "bloc de salutation affiché");
+  ok(/Sarah/.test(jour), "l'utilisateur est accueilli par son prénom");
+  ok(/🕊️/.test(jour), "son image apparaît");
+  ok(/Bonjour|Bonsoir|Bon après-midi|Belle nuit/.test(jour), "salutation selon l'heure");
+  ok(["Bonjour", "Bonsoir", "Bon après-midi", "Belle nuit"].includes(MB.saluer()),
+    "salutation cohérente avec l'heure du jour");
+
+  section("29. Profil : consultation et modification");
+  const plus = clickTab("plus");
+  ok(/Mon profil/.test(plus), "carte profil dans l'onglet « Plus »");
+  ok(/Sarah/.test(plus), "prénom affiché");
+  ok(/membre depuis/.test(plus), "ancienneté affichée");
+  ok(/06:30/.test(plus), "heure de méditation affichée");
+
+  click("#prof-edit");
+  const psh = document.querySelector(".sheet");
+  ok(!!psh, "la fiche de profil s'ouvre");
+  eq(psh.querySelector("#pf-nom").value, "Sarah", "prénom pré-rempli");
+  ok(psh.querySelector('[data-ava="🕊️"]').classList.contains("on"), "image courante pré-sélectionnée");
+  psh.querySelector("#pf-nom").value = "Marie";
+  psh.querySelector('[data-ava="🌻"]')
+    .dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+  psh.querySelector("#pf-save").dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+  eq(MB.state().profil.nom, "Marie", "prénom modifié");
+  eq(MB.state().profil.avatar, "🌻", "image modifiée");
+  eq(MB.state().profil.depuis, P.depuis, "date d'inscription conservée");
+  ok(!document.querySelector(".sheet"), "la fiche se referme après enregistrement");
+  ok(/Marie/.test(clickTab("jour")), "l'accueil reflète le nouveau prénom");
+
+  // un profil sans prénom reste discret
+  MB.state().profil = { nom: "", avatar: "🌿", heure: null, depuis: "2026-01-01" };
+  ok(!/class="hello"/.test(clickTab("jour")), "pas de salutation sans prénom");
+  ok(/Visiteur/.test(clickTab("plus")), "profil anonyme identifié comme visiteur");
+  MB.state().profil = { nom: "Marie", avatar: "🌻", heure: "06:30", depuis: P.depuis };
+  clickTab("jour");
+
+  section("30. Retour de l'utilisateur (2e lancement)");
+  // on relance l'application avec le stockage d'un utilisateur déjà inscrit
+  const sauvegarde = JSON.stringify({
+    ...JSON.parse(window.localStorage.getItem("meditation-biblique") || "{}"),
+    profil: { nom: "Paul", avatar: "🔥", heure: "06:00", depuis: "2026-01-15" }
+  });
+  const dom2 = new JSDOM(html, {
+    runScripts: "dangerously", url: "https://exemple.test/", pretendToBeVisual: true,
+    virtualConsole: new VirtualConsole(),
+    beforeParse(w) { w.localStorage.setItem("meditation-biblique", sauvegarde); }
+  });
+  await new Promise(r => dom2.window.addEventListener("load", r));
+  const d2 = dom2.window.document;
+  ok(!d2.querySelector(".onb"), "l'écran de bienvenue ne réapparaît pas au 2e lancement");
+  ok(!!d2.querySelector(".hello"), "l'utilisateur est reconnu au retour");
+  ok(/Paul/.test(d2.querySelector(".hello-txt .h").textContent), "accueilli par son prénom");
+  ok(/🔥/.test(d2.querySelector(".hello-ava").textContent), "son image est restaurée");
+  ok(/membre depuis le 15\/01\/2026/.test(
+    [...d2.querySelectorAll("nav.tabs button")].find(b => b.dataset.tab === "plus") &&
+    (() => {
+      [...d2.querySelectorAll("nav.tabs button")].find(b => b.dataset.tab === "plus")
+        .dispatchEvent(new dom2.window.MouseEvent("click", { bubbles: true }));
+      return d2.getElementById("main").textContent;
+    })()), "ancienneté conservée entre deux sessions");
+  dom2.window.close();
 
   console.log("\n" + "─".repeat(54));
   if (fail) {

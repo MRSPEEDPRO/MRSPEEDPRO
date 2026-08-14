@@ -745,3 +745,159 @@ mark { background: color-mix(in srgb, var(--clay) 32%, transparent); color: inhe
   overflow-y: auto;
 }
 .chap-grid .btn { min-height: 46px; padding: 0; }
+
+/* --- Profil : accueil et personnalisation -------------------------------- */
+.onb {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: var(--paper);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  animation: onb-in .35s ease both;
+}
+@keyframes onb-in { from { opacity: 0 } to { opacity: 1 } }
+.onb-inner {
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: calc(var(--safe-t) + 34px) 20px calc(var(--safe-b) + 34px);
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.onb-logo { font-size: 3rem; text-align: center; line-height: 1 }
+.onb h1 {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.7rem;
+  font-weight: 600;
+  text-align: center;
+  margin: 14px 0 6px;
+  color: var(--ink);
+}
+.onb .sub {
+  text-align: center;
+  color: var(--stone);
+  font-size: .95rem;
+  margin: 0 0 26px;
+  line-height: 1.6;
+}
+.onb .lbl { margin-top: 18px }
+.onb .field { font-size: 1.05rem }
+.onb .skip {
+  display: block;
+  margin: 14px auto 0;
+  background: none;
+  border: 0;
+  color: var(--stone);
+  font: inherit;
+  font-size: .88rem;
+  text-decoration: underline;
+  cursor: pointer;
+  min-height: var(--tap);
+}
+.onb .note {
+  text-align: center;
+  color: var(--stone);
+  font-size: .8rem;
+  margin: 22px 0 0;
+  line-height: 1.55;
+}
+
+/* grille d'avatars */
+.ava-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+}
+.ava {
+  aspect-ratio: 1;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  cursor: pointer;
+  transition: transform .12s, border-color .12s, background .12s;
+}
+.ava:active { transform: scale(.92) }
+.ava.on {
+  border-color: var(--sage);
+  background: var(--sage-soft);
+  box-shadow: 0 0 0 3px rgba(111, 128, 96, .16);
+}
+[data-theme="nuit"] .ava.on { background: rgba(111, 128, 96, .22) }
+
+/* salutation personnalisée */
+.hello {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 16px;
+}
+.hello-ava {
+  width: 46px;
+  height: 46px;
+  flex: 0 0 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  background: var(--sage-soft);
+  border-radius: 50%;
+}
+[data-theme="nuit"] .hello-ava { background: rgba(111, 128, 96, .22) }
+.hello-txt { min-width: 0 }
+.hello-txt .h {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.22rem;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.25;
+}
+.hello-txt .s {
+  font-size: .82rem;
+  color: var(--stone);
+  margin-top: 2px;
+}
+.hello-txt .s b { color: var(--clay); font-weight: 600 }
+
+/* carte profil dans « Plus » */
+.prof {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.prof .big-ava {
+  width: 58px;
+  height: 58px;
+  flex: 0 0 58px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.9rem;
+  background: var(--sage-soft);
+  border-radius: 50%;
+}
+[data-theme="nuit"] .prof .big-ava { background: rgba(111, 128, 96, .22) }
+.prof .nm { font-weight: 700; font-size: 1.08rem; color: var(--ink) }
+.prof .mt { font-size: .82rem; color: var(--stone); margin-top: 3px }
+
+/* rappel doux de l'heure de méditation */
+.nudge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: linear-gradient(135deg, var(--sage-soft), transparent);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--clay);
+  border-radius: 14px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  font-size: .9rem;
+  color: var(--ink);
+}
+.nudge .ic { font-size: 1.2rem; flex: 0 0 auto }

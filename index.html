@@ -758,6 +758,162 @@ mark { background: color-mix(in srgb, var(--clay) 32%, transparent); color: inhe
   overflow-y: auto;
 }
 .chap-grid .btn { min-height: 46px; padding: 0; }
+
+/* --- Profil : accueil et personnalisation -------------------------------- */
+.onb {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: var(--paper);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  animation: onb-in .35s ease both;
+}
+@keyframes onb-in { from { opacity: 0 } to { opacity: 1 } }
+.onb-inner {
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: calc(var(--safe-t) + 34px) 20px calc(var(--safe-b) + 34px);
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.onb-logo { font-size: 3rem; text-align: center; line-height: 1 }
+.onb h1 {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.7rem;
+  font-weight: 600;
+  text-align: center;
+  margin: 14px 0 6px;
+  color: var(--ink);
+}
+.onb .sub {
+  text-align: center;
+  color: var(--stone);
+  font-size: .95rem;
+  margin: 0 0 26px;
+  line-height: 1.6;
+}
+.onb .lbl { margin-top: 18px }
+.onb .field { font-size: 1.05rem }
+.onb .skip {
+  display: block;
+  margin: 14px auto 0;
+  background: none;
+  border: 0;
+  color: var(--stone);
+  font: inherit;
+  font-size: .88rem;
+  text-decoration: underline;
+  cursor: pointer;
+  min-height: var(--tap);
+}
+.onb .note {
+  text-align: center;
+  color: var(--stone);
+  font-size: .8rem;
+  margin: 22px 0 0;
+  line-height: 1.55;
+}
+
+/* grille d'avatars */
+.ava-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+}
+.ava {
+  aspect-ratio: 1;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  cursor: pointer;
+  transition: transform .12s, border-color .12s, background .12s;
+}
+.ava:active { transform: scale(.92) }
+.ava.on {
+  border-color: var(--sage);
+  background: var(--sage-soft);
+  box-shadow: 0 0 0 3px rgba(111, 128, 96, .16);
+}
+[data-theme="nuit"] .ava.on { background: rgba(111, 128, 96, .22) }
+
+/* salutation personnalisée */
+.hello {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 16px;
+}
+.hello-ava {
+  width: 46px;
+  height: 46px;
+  flex: 0 0 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  background: var(--sage-soft);
+  border-radius: 50%;
+}
+[data-theme="nuit"] .hello-ava { background: rgba(111, 128, 96, .22) }
+.hello-txt { min-width: 0 }
+.hello-txt .h {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.22rem;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.25;
+}
+.hello-txt .s {
+  font-size: .82rem;
+  color: var(--stone);
+  margin-top: 2px;
+}
+.hello-txt .s b { color: var(--clay); font-weight: 600 }
+
+/* carte profil dans « Plus » */
+.prof {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.prof .big-ava {
+  width: 58px;
+  height: 58px;
+  flex: 0 0 58px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.9rem;
+  background: var(--sage-soft);
+  border-radius: 50%;
+}
+[data-theme="nuit"] .prof .big-ava { background: rgba(111, 128, 96, .22) }
+.prof .nm { font-weight: 700; font-size: 1.08rem; color: var(--ink) }
+.prof .mt { font-size: .82rem; color: var(--stone); margin-top: 3px }
+
+/* rappel doux de l'heure de méditation */
+.nudge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: linear-gradient(135deg, var(--sage-soft), transparent);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--clay);
+  border-radius: 14px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  font-size: .9rem;
+  color: var(--ink);
+}
+.nudge .ic { font-size: 1.2rem; flex: 0 0 auto }
 </style>
 </head>
 <body>
@@ -1107,7 +1263,8 @@ window.PLANS=[{"id":"bible-1an","n":"La Bible en 1 an","i":"📖","d":"Les 1 189
     lecture: null,        // {a, c} dernière position de lecture
     proseLignes: false,   // affichage « un verset par ligne »
     lu: {},               // {"AAAA-MM-JJ": "REF"} — historique verset du jour
-    serie: { dernier: null, jours: 0, record: 0 }
+    serie: { dernier: null, jours: 0, record: 0 },
+    profil: null          // {nom, avatar, heure|null, depuis:"AAAA-MM-JJ"}
   };
 
   var S = load();
@@ -1386,6 +1543,131 @@ window.PLANS=[{"id":"bible-1an","n":"La Bible en 1 an","i":"📖","d":"Les 1 189
     });
   }
 
+  // --- Profil local --------------------------------------------------------
+  // Aucune inscription en ligne : le profil vit uniquement dans ce navigateur.
+  var AVATARS = ["🌿", "🕊️", "🙏", "✝️", "🌻", "🔥", "⭐", "🌅", "🍃", "💛", "🌊", "🦋"];
+
+  function profil() { return S.profil; }
+
+  function saluer() {
+    var hh = new Date().getHours();
+    if (hh < 5) return "Belle nuit";
+    if (hh < 12) return "Bonjour";
+    if (hh < 18) return "Bon après-midi";
+    return "Bonsoir";
+  }
+
+  function prenom() {
+    return (S.profil && S.profil.nom) ? S.profil.nom : "";
+  }
+
+  function saveProfil(nom, avatar, heure) {
+    nom = String(nom || "").trim().slice(0, 24);
+    S.profil = {
+      nom: nom,
+      avatar: avatar || "🌿",
+      heure: heure || null,
+      depuis: (S.profil && S.profil.depuis) || ymd(new Date())
+    };
+    save();
+  }
+
+  // Écran d'accueil : proposé une seule fois, jamais bloquant.
+  function onboarding() {
+    var choix = { avatar: "🌿", heure: "" };
+    var el = document.createElement("div");
+    el.className = "onb";
+    var h = '<div class="onb-inner">';
+    h += '<div class="onb-logo">🌿</div>';
+    h += "<h1>Bienvenue</h1>";
+    h += '<p class="sub">Créons votre profil pour personnaliser vos méditations.<br>' +
+      "Tout reste sur cet appareil.</p>";
+    h += '<label class="lbl" for="onb-nom">Comment vous appelez-vous ?</label>';
+    h += '<input class="field" id="onb-nom" maxlength="24" autocomplete="given-name" ' +
+      'placeholder="Votre prénom">';
+    h += '<label class="lbl">Choisissez votre image</label><div class="ava-grid">';
+    AVATARS.forEach(function (a, i) {
+      h += '<button type="button" class="ava' + (i === 0 ? " on" : "") +
+        '" data-ava="' + a + '" aria-label="Avatar ' + a + '">' + a + "</button>";
+    });
+    h += "</div>";
+    h += '<label class="lbl" for="onb-h">Votre moment de méditation <span class="muted">(facultatif)</span></label>';
+    h += '<input class="field" id="onb-h" type="time" value="07:00">';
+    h += '<button class="btn primary block" id="onb-go" style="margin-top:22px">Commencer 🌿</button>';
+    h += '<button type="button" class="skip" id="onb-skip">Passer cette étape</button>';
+    h += '<p class="note">🔒 Aucune inscription en ligne, aucun mot de passe.<br>' +
+      "Vos données ne quittent jamais cet appareil.</p>";
+    h += "</div>";
+    el.innerHTML = h;
+    document.body.appendChild(el);
+
+    var nom = el.querySelector("#onb-nom");
+    setTimeout(function () { try { nom.focus(); } catch (e) {} }, 260);
+
+    el.addEventListener("click", function (e) {
+      var a = e.target.closest("[data-ava]");
+      if (a) {
+        choix.avatar = a.dataset.ava;
+        el.querySelectorAll(".ava").forEach(function (b) {
+          b.classList.toggle("on", b === a);
+        });
+        return;
+      }
+      if (e.target.closest("#onb-go")) {
+        var hv = el.querySelector("#onb-h").value;
+        saveProfil(nom.value, choix.avatar, hv || null);
+        el.remove();
+        render();
+        if (prenom()) toast("Bienvenue, " + prenom() + " 🌿");
+        return;
+      }
+      if (e.target.closest("#onb-skip")) {
+        saveProfil("", "🌿", null);
+        el.remove();
+        render();
+      }
+    });
+
+    nom.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") el.querySelector("#onb-go").click();
+    });
+  }
+
+  // Modification du profil depuis l'onglet « Plus »
+  function profilSheet() {
+    var p = S.profil || { nom: "", avatar: "🌿", heure: null };
+    var h = '<label class="lbl" for="pf-nom">Prénom</label>' +
+      '<input class="field" id="pf-nom" maxlength="24" value="' + esc(p.nom || "") +
+      '" placeholder="Votre prénom">';
+    h += '<label class="lbl">Image</label><div class="ava-grid">';
+    AVATARS.forEach(function (a) {
+      h += '<button type="button" class="ava' + (a === p.avatar ? " on" : "") +
+        '" data-ava="' + a + '">' + a + "</button>";
+    });
+    h += "</div>";
+    h += '<label class="lbl" for="pf-h">Moment de méditation</label>' +
+      '<input class="field" id="pf-h" type="time" value="' + esc(p.heure || "") + '">';
+    h += '<div style="display:flex;gap:8px;margin-top:18px">' +
+      '<button class="btn primary grow" id="pf-save">Enregistrer</button></div>';
+
+    var sh = sheet("Mon profil", h);
+    var av = p.avatar;
+    sh.addEventListener("click", function (e) {
+      var a = e.target.closest("[data-ava]");
+      if (a) {
+        av = a.dataset.ava;
+        sh.querySelectorAll(".ava").forEach(function (b) { b.classList.toggle("on", b === a); });
+        return;
+      }
+      if (e.target.closest("#pf-save")) {
+        saveProfil(sh.querySelector("#pf-nom").value, av, sh.querySelector("#pf-h").value || null);
+        closeSheet();
+        render();
+        toast("Profil enregistré ✓");
+      }
+    });
+  }
+
   // --- Série de jours ------------------------------------------------------
   function touchStreak() {
     var today = ymd(new Date());
@@ -1415,6 +1697,24 @@ window.PLANS=[{"id":"bible-1an","n":"La Bible en 1 an","i":"📖","d":"Les 1 189
     if (usePerso && offset === 0) markVu(ref);
 
     var h = "";
+
+    // salutation personnalisée (uniquement pour aujourd'hui)
+    if (offset === 0 && S.profil && S.profil.nom) {
+      var st = S.serie;
+      var sous = st.jours > 1
+        ? "<b>" + st.jours + " jours</b> de méditation d'affilée 🔥"
+        : "Que ce verset éclaire votre journée.";
+      h += '<div class="hello"><div class="hello-ava">' + esc(S.profil.avatar || "🌿") + "</div>" +
+        '<div class="hello-txt"><div class="h">' + esc(saluer() + ", " + S.profil.nom) + "</div>" +
+        '<div class="s">' + sous + "</div></div></div>";
+    }
+
+    // rappel doux de l'heure choisie
+    if (offset === 0 && S.profil && S.profil.heure && S.serie.dernier !== ymd(new Date())) {
+      h += '<div class="nudge"><span class="ic">⏰</span><div>Votre moment de méditation : <b>' +
+        esc(S.profil.heure) + "</b></div></div>";
+    }
+
     h += '<div class="card verse-card">';
     h += '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px">';
     h += '<span class="verse-date">' + esc(frDate(date)) + "</span>";
@@ -2225,7 +2525,26 @@ window.PLANS=[{"id":"bible-1an","n":"La Bible en 1 an","i":"📖","d":"Les 1 189
   }
 
   function viewPlus() {
-    var h = '<h2 class="section-h">Plus</h2><p class="section-sub">Favoris, guide et réglages.</p>';
+    var h = '<h2 class="section-h">Plus</h2><p class="section-sub">Profil, favoris, guide et réglages.</p>';
+
+    // --- profil ---
+    var pf = S.profil;
+    h += '<div class="card"><div class="card-title">👤 Mon profil</div><div class="prof">';
+    h += '<div class="big-ava">' + esc((pf && pf.avatar) || "🌿") + "</div>";
+    h += '<div class="grow" style="min-width:0">';
+    if (pf && pf.nom) {
+      h += '<div class="nm">' + esc(pf.nom) + "</div>";
+      var det = [];
+      if (pf.depuis) det.push("membre depuis le " + esc(pf.depuis.split("-").reverse().join("/")));
+      if (pf.heure) det.push("méditation à " + esc(pf.heure));
+      h += '<div class="mt">' + det.join(" · ") + "</div>";
+    } else {
+      h += '<div class="nm">Visiteur</div>' +
+        '<div class="mt">Ajoutez votre prénom pour personnaliser l\'accueil</div>';
+    }
+    h += "</div>";
+    h += '<button class="btn sm" id="prof-edit">' + (pf && pf.nom ? "Modifier" : "Créer") + "</button>";
+    h += "</div></div>";
 
     h += '<div class="card"><div class="card-title">★ Mes favoris (' + S.favoris.length + ")</div>";
     if (!S.favoris.length) {
@@ -2317,6 +2636,7 @@ window.PLANS=[{"id":"bible-1an","n":"La Bible en 1 an","i":"📖","d":"Les 1 189
 
   // --- Événements globaux --------------------------------------------------
   document.addEventListener("click", function (e) {
+    if (e.target.closest("#prof-edit")) { profilSheet(); return; }
     var t = e.target.closest("[data-tab],[data-fav],[data-note],[data-share],[data-speak]," +
       "[data-copy],[data-close],[data-plan],[data-theme],[data-book],[data-open]," +
       "[data-off],[data-size],[data-mode2],[data-ndel],[data-pstep],[data-pmode],[data-read]");
@@ -2429,8 +2749,8 @@ window.PLANS=[{"id":"bible-1an","n":"La Bible en 1 an","i":"📖","d":"Les 1 189
     }
     if (e.target.closest("#wipe")) {
       sheet("Tout effacer ?",
-        '<p class="muted" style="font-size:.92rem">Vos notes, favoris et progressions seront ' +
-        "définitivement supprimés de cet appareil.</p>" +
+        '<p class="muted" style="font-size:.92rem">Votre profil, vos notes, favoris, surlignages ' +
+        "et progressions seront définitivement supprimés de cet appareil.</p>" +
         '<div style="display:flex;gap:8px;margin-top:16px">' +
         '<button class="btn" style="flex:1" data-close>Annuler</button>' +
         '<button class="btn primary" id="wipe2" style="flex:1">Tout effacer</button></div>');
@@ -2442,6 +2762,7 @@ window.PLANS=[{"id":"bible-1an","n":"La Bible en 1 an","i":"📖","d":"Les 1 189
       applySettings();
       render();
       toast("Données effacées");
+      onboarding();
     }
     if (e.target.closest("#dark-toggle")) {
       S.reglages.theme = S.reglages.theme === "nuit" ? "jour" : "nuit";
@@ -2466,6 +2787,7 @@ window.PLANS=[{"id":"bible-1an","n":"La Bible en 1 an","i":"📖","d":"Les 1 189
     if (l) l.remove();
     $("#app").classList.remove("hide");
     render();
+    if (!S.profil) onboarding();
     if ("speechSynthesis" in window) window.speechSynthesis.getVoices();
   }
 
@@ -2478,6 +2800,7 @@ window.PLANS=[{"id":"bible-1an","n":"La Bible en 1 an","i":"📖","d":"Les 1 189
     parseRef: parseRef, refLabel: refLabel, verseText: verseText,
     dailyRefFor: dailyRefFor, persoRefFor: persoRefFor,
     inflate: inflate, ymd: ymd, frDate: frDate,
+    saluer: saluer, avatars: function () { return AVATARS; },
     state: function () { return S; }
   };
 })();

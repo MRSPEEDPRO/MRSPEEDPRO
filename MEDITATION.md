@@ -28,6 +28,7 @@ Publiable tel quel sur GitHub Pages, Netlify, une clé USB ou envoyé par WhatsA
 
 | | |
 |---|---|
+| 👤 **Mon profil** | Inscription **locale** à la première ouverture : prénom, image parmi 12, moment de méditation · l'accueil vous salue par votre prénom et affiche votre série de jours · modifiable à tout moment · **aucun compte en ligne, aucun mot de passe**, l'étape peut être passée |
 | 🌅 **Verset du jour** | Rotation sur **247 versets** choisis · navigation vers les jours précédents |
 | 🎯 **Ma méditation personnalisée** | Choisissez un **chapitre** ou un **livre entier** · méthode 📆 **Suivi** (dans l'ordre, avec cycle en fin de passage) ou 🎲 **Aléatoire** (jamais le verset de la veille, découvertes comptabilisées) · bascule à tout moment avec le verset du jour général |
 | 🔊 **Écoute audio** | Synthèse vocale française (Web Speech API) |
@@ -46,9 +47,13 @@ Publiable tel quel sur GitHub Pages, Netlify, une clé USB ou envoyé par WhatsA
 
 ## 🔒 Vie privée
 
-**Rien ne sort de votre téléphone.** Aucune requête réseau, aucun traceur, aucun compte.
-Journal, favoris et progression vivent dans le `localStorage` du navigateur.
+**Rien ne sort de votre téléphone.** Aucune requête réseau, aucun traceur, aucun serveur.
+Profil, journal, favoris, surlignages et progression vivent dans le `localStorage` du navigateur.
 Le code ne contient ni `fetch`, ni `XMLHttpRequest` — c'est vérifié par les tests.
+
+L'« inscription » est **purement locale** : elle ne demande ni e-mail, ni mot de passe, et ne crée
+aucun compte en ligne. C'est un profil d'affichage, stocké sur l'appareil, que l'on peut passer,
+modifier ou supprimer (« Tout effacer ») à tout moment.
 
 ---
 
@@ -68,7 +73,7 @@ Le code ne contient ni `fetch`, ni `XMLHttpRequest` — c'est vérifié par les 
 | `tools/parse_usfm.py` | Convertit les sources USFM en `bible_lsg.json` |
 | `tools/gen_content.py` | Génère et valide thèmes et versets du jour |
 | `build.py` | Assemble `index.html` |
-| `test_smoke.js` | 258 vérifications automatiques (jsdom) |
+| `test_smoke.js` | 300 vérifications automatiques (jsdom) |
 
 ---
 
@@ -104,6 +109,7 @@ maison, sans dépendance) les décompresse en mémoire en une fraction de second
 - 247 versets du jour sans doublon, rotation complète et déterministe
 - 19 thèmes / 266 versets · 11 plans · couverture exacte de la Bible par le plan 1 an
 - les 7 onglets, le journal, les favoris, la recherche, le partage, les réglages
+- le profil local : création, accueil personnalisé, modification, persistance entre deux sessions
 - le lecteur plein écran : sélection de versets, surlignage persistant, navigation et reprise de lecture
 - la méditation personnalisée : suivi séquentiel, cycle, tirage aléatoire ≠ veille
 - l'autonomie du fichier : aucun script, style ou appel réseau externe
