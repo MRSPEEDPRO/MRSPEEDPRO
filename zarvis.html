@@ -7,7 +7,7 @@
 <meta name="theme-color" content="#03060a">
 <meta name="description" content="ZARVIS — assistant personnel autonome 100 % hors-ligne, inspiré des interfaces de science-fiction. Aucun serveur, aucune clé API, aucune donnée envoyée.">
 <!-- Favicon embarquée en data-URI SVG : aucune ressource réseau -->
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='28' fill='%2303060a'/%3E%3Ccircle cx='32' cy='32' r='26' fill='none' stroke='%2300e5ff' stroke-width='2' stroke-dasharray='6 4'/%3E%3Ccircle cx='32' cy='32' r='12' fill='%2300e5ff' opacity='.85'/%3E%3Ccircle cx='32' cy='32' r='6' fill='%23e6fbff'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='28' fill='%2303060a'/%3E%3Ccircle cx='32' cy='32' r='26' fill='none' stroke='%2300e5ff' stroke-width='2' stroke-dasharray='6 4'/%3E%3Ccircle cx='32' cy='32' r='12' fill='%2300e5ff' opacity='.85'/%3E%3Ccircle cx='32' cy='32' r='6' fill='%23e6fbff'/%3E%3C/svg%3E">
 <title>ZARVIS — Assistant personnel autonome</title>
 <style>
 /* ==========================================================================
@@ -726,6 +726,27 @@ button{ font: inherit; color: inherit; }
           </div>
         </section>
 
+        <section class="view" id="view-memory" role="tabpanel" aria-labelledby="tab-memory" hidden>
+          <h3>Mémoire & évolution</h3>
+          <div class="statgrid" id="memStats"></div>
+          <div id="memList"></div>
+          <form class="inlineform" id="memForm">
+            <label class="vhidden" for="memSubjectInput">Sujet à mémoriser</label>
+            <input id="memSubjectInput" type="text" maxlength="80" placeholder="Sujet…">
+            <label class="vhidden" for="memAnswerInput">Réponse à mémoriser</label>
+            <input id="memAnswerInput" type="text" maxlength="420" placeholder="Réponse…">
+            <button type="submit" aria-label="Mémoriser">✓</button>
+          </form>
+          <div class="profile-actions">
+            <button type="button" id="btnMemExport">⭳ Exporter la mémoire (JSON)</button>
+            <button type="button" id="btnMemClear" class="danger">Oublie tout</button>
+          </div>
+          <p style="font-size:11px;color:var(--faint);margin-top:14px;line-height:1.6">
+            Mémoire locale : base intégrée + apprentissages sauvegardés dans <span class="kbd">zrv_kb</span>.
+            Commande : « Apprends que sujet = réponse ».
+          </p>
+        </section>
+
         <section class="view" id="view-profile" role="tabpanel" aria-labelledby="tab-profile" hidden>
           <h3>Profil opérateur</h3>
           <div class="statgrid">
@@ -766,7 +787,7 @@ button{ font: inherit; color: inherit; }
 "use strict";
 /* ==============================================================================
    ZARVIS — Noyau logique (JavaScript embarqué)
-   Aucun fetch, aucun XMLHttpRequest, aucune API distante, aucun eval().
+   Aucun appel réseau JavaScript, aucune API distante, aucune évaluation dynamique.
    Toutes les données vivent dans localStorage (et l'historique en sessionStorage).
    ============================================================================== */
 
@@ -784,7 +805,7 @@ function light(s){
     .trim();
 }
 
-/* Calculatrice sécurisée AUCUN eval() :
+/* Calculatrice sécurisée sans évaluation dynamique :
    analyseur à descente récursive (expression → terme → puissance → unaire → primaire).
    Accepte + - * / × ÷ ^ %, parenthèses, décimaux (point ou virgule). */
 function calculate(expr){
@@ -847,6 +868,45 @@ function fmtClock(ms){
   const p = n => String(n).padStart(2, "0");
   return h > 0 ? `${p(h)}:${p(m)}:${p(s)}` : `${p(m)}:${p(s)}`;
 }
+
+
+/* Normalise une clé de connaissance : minuscules, accents retirés, mots-outils filtrés. */
+function normKey(s){
+  return String(s == null ? "" : s)
+    .toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[’‘ʼ]/g, "'")
+    .replace(/[^a-z0-9'\s-]/g, " ")
+    .replace(/\b(?:le|la|les|un|une|des|du|de|d|l|sur|a|au|aux|est|c|ce|cet|cette|quoi|qui|que|qu|pourquoi|quelle|quel|capitale)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+function keyWords(s){ return normKey(s).split(" ").filter(w => w.length > 1); }
+function jaccardWords(a, b){
+  const A = new Set(keyWords(a)), B = new Set(keyWords(b));
+  if (!A.size && !B.size) return 1;
+  let inter = 0; A.forEach(x => { if (B.has(x)) inter++; });
+  return inter / Math.max(1, A.size + B.size - inter);
+}
+function trigrams(s){
+  const k = "  " + normKey(s).replace(/\s+/g, " ") + "  ";
+  const out = new Set();
+  for (let i = 0; i < k.length - 2; i++) out.add(k.slice(i, i + 3));
+  return out;
+}
+function trigramSim(a, b){
+  const A = trigrams(a), B = trigrams(b);
+  if (!A.size && !B.size) return 1;
+  let inter = 0; A.forEach(x => { if (B.has(x)) inter++; });
+  return inter / Math.max(1, A.size + B.size - inter);
+}
+function simScore(a, b){
+  const na = normKey(a), nb = normKey(b);
+  if (!na || !nb) return 0;
+  let score = jaccardWords(na, nb) * 0.60 + trigramSim(na, nb) * 0.40;
+  if (na.includes(nb) || nb.includes(na)) score += 0.18;
+  return Math.min(1, score);
+}
 /*__PURE_END__*/
 
 /* ==============================================================================
@@ -854,7 +914,8 @@ function fmtClock(ms){
    ============================================================================== */
 const LS = {                      // clés localStorage (préfixe dédié à ZARVIS)
   TASKS: "zrv_tasks", NOTES: "zrv_notes", PROFILE: "zrv_profile",
-  THEME: "zrv_theme", VOICE: "zrv_voice", TIMER: "zrv_timer", HIST: "zrv_history"
+  THEME: "zrv_theme", VOICE: "zrv_voice", TIMER: "zrv_timer", HIST: "zrv_history",
+  KB: "zrv_kb", STATS: "zrv_stats"
 };
 /* Accès défensif : localStorage/sessionStorage peuvent être bloqués (mode privé…). */
 const store = {
@@ -867,12 +928,72 @@ const sess = {
   set(k, v){ try{ sessionStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
 };
 
+
+/* ==============================================================================
+   CONNAISSANCE V2 — base intégrée, mémoire locale et évolution
+   ============================================================================== */
+const BASE_KB = [
+  { subject:"Internet", answer:"Internet est un réseau mondial de réseaux qui permet aux appareils d'échanger des informations grâce à des protocoles communs comme IP. Il sert au web, aux messages, aux appels, au transfert de fichiers et à de nombreux services numériques." },
+  { subject:"Ordinateur", answer:"Un ordinateur est une machine programmable qui reçoit des données, les traite avec un processeur, stocke des informations en mémoire et produit des résultats via des logiciels et des périphériques." },
+  { subject:"Algorithme", answer:"Un algorithme est une suite d'étapes précises pour résoudre un problème. Une recette de cuisine, un itinéraire ou un programme informatique peuvent être vus comme des algorithmes." },
+  { subject:"Intelligence artificielle", answer:"L'intelligence artificielle regroupe des techniques qui permettent à une machine d'effectuer des tâches associées au raisonnement, à la perception, au langage ou à la décision. ZARVIS reste ici local et déterministe." },
+  { subject:"Machine learning", answer:"Le machine learning, ou apprentissage automatique, consiste à ajuster un modèle à partir de données afin qu'il reconnaisse des motifs et fasse des prédictions. ZARVIS v2 apprend seulement des fiches textuelles locales." },
+  { subject:"Cybersécurité", answer:"La cybersécurité protège les systèmes, les données et les utilisateurs contre les accès non autorisés, les logiciels malveillants, l'usurpation et les pertes d'information." },
+  { subject:"Chiffrement", answer:"Le chiffrement transforme une information lisible en données incompréhensibles sans clé. Il protège la confidentialité des messages, des fichiers et des communications." },
+  { subject:"Blockchain", answer:"Une blockchain est un registre distribué où les blocs de transactions sont liés cryptographiquement. Elle vise la traçabilité et la résistance à la falsification, avec des compromis de coût et de performance." },
+  { subject:"Cloud", answer:"Le cloud computing fournit à distance du stockage, du calcul ou des logiciels via des centres de données. ZARVIS, lui, fonctionne sans cloud pour préserver le mode hors-ligne." },
+  { subject:"Base de données", answer:"Une base de données organise des informations pour les retrouver, les modifier et les analyser efficacement. Elle peut être relationnelle, documentaire, clé-valeur ou orientée graphe." },
+  { subject:"HTML", answer:"HTML est le langage de balisage qui structure une page web : titres, paragraphes, liens, formulaires, images et régions accessibles." },
+  { subject:"CSS", answer:"CSS décrit l'apparence d'une page web : couleurs, polices, espacements, animations, disposition responsive et adaptation aux thèmes." },
+  { subject:"JavaScript", answer:"JavaScript est un langage de programmation utilisé dans le navigateur pour rendre les pages interactives : écouter des événements, modifier le DOM et exécuter une logique locale." },
+  { subject:"API", answer:"Une API est une interface qui permet à des logiciels d'échanger des fonctions ou des données selon des règles définies. Dans ZARVIS, aucune API distante n'est nécessaire." },
+  { subject:"Robotique", answer:"La robotique combine mécanique, électronique, capteurs et programmation pour créer des machines capables d'agir dans le monde physique." },
+  { subject:"Énergie solaire", answer:"L'énergie solaire exploite la lumière du Soleil, souvent avec des panneaux photovoltaïques, pour produire de l'électricité renouvelable." },
+  { subject:"Électricité", answer:"L'électricité est liée au mouvement ou à l'accumulation de charges électriques. Elle alimente les appareils et se mesure notamment en tension, courant et puissance." },
+  { subject:"Gravité", answer:"La gravité est l'interaction qui attire les masses entre elles. Elle maintient les planètes en orbite et donne du poids aux objets à la surface de la Terre." },
+  { subject:"Atome", answer:"Un atome est une unité de matière composée d'un noyau, avec protons et neutrons, entouré d'électrons. Les atomes forment les éléments chimiques." },
+  { subject:"ADN", answer:"L'ADN porte l'information génétique des êtres vivants. Sa structure en double hélice code des instructions utilisées par les cellules." },
+  { subject:"Photosynthèse", answer:"La photosynthèse permet aux plantes, algues et certaines bactéries de convertir la lumière, le dioxyde de carbone et l'eau en sucres, en libérant de l'oxygène." },
+  { subject:"Cellule", answer:"La cellule est l'unité de base du vivant. Elle contient des structures qui assurent énergie, protection, reproduction et fabrication de molécules." },
+  { subject:"Système solaire", answer:"Le système solaire comprend le Soleil, huit planètes, leurs lunes, des astéroïdes, des comètes et des objets plus petits liés par la gravité." },
+  { subject:"Trou noir", answer:"Un trou noir est une région de l'espace où la gravité est si intense que rien, pas même la lumière, ne peut s'en échapper au-delà de l'horizon des événements." },
+  { subject:"Climat", answer:"Le climat décrit les conditions moyennes d'une région sur de longues périodes : température, pluies, vents et saisons. Il diffère de la météo, qui concerne le court terme." },
+  { subject:"Volcan", answer:"Un volcan est une ouverture de la croûte terrestre par laquelle remontent magma, gaz et cendres. Ses éruptions construisent des reliefs et transforment les paysages." },
+  { subject:"Séisme", answer:"Un séisme est une vibration du sol causée par une libération d'énergie dans la croûte terrestre, souvent le long de failles tectoniques." },
+  { subject:"Océan", answer:"Les océans couvrent la majeure partie de la Terre. Ils régulent le climat, abritent une biodiversité immense et influencent les cycles de l'eau et du carbone." },
+  { subject:"Afrique", answer:"L'Afrique est le deuxième continent par sa superficie et sa population. Elle rassemble une grande diversité de langues, de climats, d'écosystèmes, d'histoires et d'économies." },
+  { subject:"République du Congo", capital:"Brazzaville", answer:"La République du Congo est un pays d'Afrique centrale. Sa capitale est Brazzaville, située sur le fleuve Congo, face à Kinshasa." },
+  { subject:"Brazzaville", answer:"Brazzaville est la capitale de la République du Congo. Elle se trouve sur la rive nord du fleuve Congo et constitue un centre politique, culturel et économique majeur." },
+  { subject:"France", capital:"Paris", answer:"La France est un pays d'Europe occidentale. Sa capitale est Paris, et sa langue officielle est le français." },
+  { subject:"Japon", capital:"Tokyo", answer:"Le Japon est un archipel d'Asie de l'Est. Sa capitale est Tokyo, l'une des plus grandes métropoles du monde." },
+  { subject:"Brésil", capital:"Brasília", answer:"Le Brésil est le plus grand pays d'Amérique du Sud. Sa capitale est Brasília, et le portugais y est la langue officielle." },
+  { subject:"Sénégal", capital:"Dakar", answer:"Le Sénégal est un pays d'Afrique de l'Ouest. Sa capitale est Dakar, située sur la presqu'île du Cap-Vert." },
+  { subject:"Maroc", capital:"Rabat", answer:"Le Maroc est un pays d'Afrique du Nord. Sa capitale est Rabat, et Casablanca est son plus grand centre économique." },
+  { subject:"Canada", capital:"Ottawa", answer:"Le Canada est un pays d'Amérique du Nord. Sa capitale est Ottawa, et il possède deux langues officielles : l'anglais et le français." },
+  { subject:"Égypte", capital:"Le Caire", answer:"L'Égypte est un pays d'Afrique du Nord-Est. Sa capitale est Le Caire, proche du Nil et des grandes pyramides de Gizeh." }
+];
+const LEVELS = [
+  { min:0, name:"Veille" }, { min:6, name:"Curieux" }, { min:18, name:"Apprenti" },
+  { min:40, name:"Analyste" }, { min:80, name:"Archiviste" }, { min:140, name:"Évolué" }
+];
+function computeLevel(stats){
+  const xp = (stats.cmds || 0) + (stats.asked || 0) * 2 + (stats.taught || 0) * 4;
+  let level = 1, title = LEVELS[0].name;
+  LEVELS.forEach((l, i) => { if (xp >= l.min){ level = i + 1; title = l.name; } });
+  const next = LEVELS[level] ? LEVELS[level].min - xp : 0;
+  return { xp, level, title, next };
+}
+
 const state = {
   tasks:   store.get(LS.TASKS, []),                 // {id, text, done, created}
   notes:   store.get(LS.NOTES, []),                 // {id, text, created}
   profile: store.get(LS.PROFILE, { name: null }),
   voice:   store.get(LS.VOICE, true),               // synthèse vocale activée ?
   timer:   store.get(LS.TIMER, null),               // { ends, label } | null
+  kb:      store.get(LS.KB, []),                    // fiches apprises {subject, answer, created, updated}
+  stats:   store.get(LS.STATS, { cmds:0, taught:0, asked:0, level:1 }),
+  teachPending: null,
+  forgetAllPending: false,
   history: sess.get(LS.HIST, []),                   // historique de la session
   bootAt:  Date.now(),
   lastCmds: [],                                     // rappel clavier (flèche haut)
@@ -1073,6 +1194,7 @@ const MODULES = [
   { id: "notes",     lbl: "Notes",      ico: "◉", sub: "Bloc-notes" },
   { id: "protocols", lbl: "Protocoles", ico: "⬢", sub: "Commandes vocales & texte" },
   { id: "system",    lbl: "Système",    ico: "◎", sub: "Diagnostic & télémétrie" },
+  { id: "memory",    lbl: "Mémoire",    ico: "◍", sub: "Apprentissage & évolution" },
   { id: "profile",   lbl: "Profil",     ico: "◬", sub: "Opérateur & données" }
 ];
 let activeModule = "tasks";
@@ -1319,10 +1441,11 @@ function beep(){
    STATISTIQUES & COMPTEURS
    ============================================================================== */
 function refreshBadges(){
-  const bt = $("badge-tasks"), bn = $("badge-notes");
+  const bt = $("badge-tasks"), bn = $("badge-notes"), bm = $("badge-memory");
   const p = pendingTasks();
   bt.hidden = !p; bt.textContent = p;
   bn.hidden = !state.notes.length; bn.textContent = state.notes.length;
+  if (bm){ bm.hidden = !state.kb.length; bm.textContent = state.kb.length; }
   document.querySelectorAll('.bottombar button[data-mod="tasks"] .ico')
     .forEach(i => i.textContent = p ? "◈" : "◇");
 }
@@ -1346,6 +1469,7 @@ function renderCounters(){
   // Profil (vue)
   $("profName").textContent = state.profile.name || "—";
   $("profVoice").textContent = ttsOK ? (state.voice ? "Activée" : "Coupée") : "Indisponible";
+  renderMemory();
   renderStats();
 }
 function renderStats(){
@@ -1357,6 +1481,8 @@ function renderStats(){
     ["Uptime", fmtClock(Date.now() - state.bootAt)],
     ["Tâches en cours", pendingTasks()],
     ["Notes", state.notes.length],
+    ["Mémoire ZARVIS", state.kb.length + " apprise(s) · " + BASE_KB.length + " base"],
+    ["Niveau", computeLevel(state.stats).level + " · " + computeLevel(state.stats).title],
     ["Stockage local", storageBytes() < 1024 ? storageBytes() + " o"
                                              : (storageBytes() / 1024).toFixed(1) + " Ko"],
     ["Mémoire JS", mem],
@@ -1418,7 +1544,7 @@ function runScan(){
     "◆ SCAN SYSTÈME EN COURS…",
     ["Noyau local", "OK", true],
     ["Stockage local (" + storageBytes() + " o)", "OK", true],
-    ["Modules : tâches · notes · minuteur · calculatrice", "OK", true],
+    ["Modules : tâches · notes · mémoire · minuteur · calculatrice", "OK", true],
     ["Synthèse vocale", ttsOK ? "OK" : "NON DISPONIBLE", ttsOK],
     ["Reconnaissance vocale", SRClass ? "OK (navigateur)" : "NON PRISE EN CHARGE", !!SRClass],
     ["Batterie", batteryLevel != null ? Math.round(batteryLevel * 100) + " %" : "N/D", true],
@@ -1446,6 +1572,152 @@ function runScan(){
       }
     }, delays * idx);
   });
+}
+
+
+/* ==============================================================================
+   MÉMOIRE V2 — apprentissage, recherche locale et export
+   ============================================================================== */
+function allKb(){
+  const learned = state.kb.map(x => ({ ...x, source:"memoire" }));
+  const base = BASE_KB.map(x => ({ ...x, source:"base" }));
+  return learned.concat(base);
+}
+function saveKb(){ store.set(LS.KB, state.kb); renderMemory(); refreshBadges(); }
+function saveStats(){
+  const lvl = computeLevel(state.stats);
+  state.stats.level = lvl.level;
+  store.set(LS.STATS, state.stats);
+  renderMemory();
+}
+function bumpStat(key, by){
+  const before = computeLevel(state.stats).level;
+  state.stats[key] = (state.stats[key] || 0) + (by || 1);
+  const afterInfo = computeLevel(state.stats);
+  state.stats.level = afterInfo.level;
+  store.set(LS.STATS, state.stats);
+  if (afterInfo.level > before){
+    addMessage("sys", "Évolution ZARVIS : niveau " + afterInfo.level + " — " + afterInfo.title + ".", { store:false });
+  }
+  renderMemory();
+}
+function kbSearch(query, entries){
+  let best = null;
+  (entries || allKb()).forEach(e => {
+    const s1 = simScore(query, e.subject);
+    const s2 = e.tags ? Math.max(...String(e.tags).split(/[,;]+/).map(t => simScore(query, t))) : 0;
+    const score = Math.max(s1, s2 || 0);
+    if (!best || score > best.score) best = { entry:e, score };
+  });
+  return best;
+}
+function parseKnowledgeQuestion(lc){
+  let m;
+  if ((m = /^quelle\s+est\s+la\s+capitale\s+d[eu']\s+(.+)$/i.exec(lc)) ||
+      (m = /^capitale\s+d[eu']\s+(.+)$/i.exec(lc))) return { subject:m[1], type:"capital" };
+  if ((m = /^que\s+sais[-\s]tu\s+sur\s+(.+)$/i.exec(lc)) ||
+      (m = /^c['’]?est\s+quoi\s+(.+)$/i.exec(lc)) ||
+      (m = /^qu['’]?est[-\s]ce\s+que\s+(.+)$/i.exec(lc)) ||
+      (m = /^qui\s+est\s+(.+)$/i.exec(lc)) ||
+      (m = /^pourquoi\s+(.+)$/i.exec(lc))) return { subject:m[1], type:"about" };
+  return null;
+}
+function answerKnowledge(q){
+  const subject = light(q.subject).replace(/^['’\s]+|['’\s]+$/g, "");
+  if (!subject) return false;
+  const found = kbSearch(subject);
+  bumpStat("asked", 1);
+  if (found && found.score >= 0.55){
+    const e = found.entry;
+    const txt = q.type === "capital" && e.capital
+      ? "La capitale de " + e.subject + " est " + e.capital + "."
+      : e.answer;
+    addRichMessage("zarvis", c => {
+      c.append(el("p", null, txt));
+      c.append(el("p", null, "Source : " + (e.source === "memoire" ? "mémoire apprise" : "base intégrée") + " · similarité " + Math.round(found.score * 100) + " %."));
+    }, { summary: txt, speakText: txt });
+    return true;
+  }
+  state.teachPending = subject;
+  store.set(LS.STATS, state.stats);
+  addRichMessage("zarvis", c => {
+    c.append(el("p", null, "Je ne connais pas encore « " + subject + " »."));
+    c.append(el("p", null, "Enseignez-moi avec votre prochain message, ou tapez « annule ». Exemple : « " + subject + " est … »"));
+  }, { summary:"Sujet inconnu : " + subject, speakText:"Je ne connais pas encore ce sujet. Enseignez-moi avec votre prochain message." });
+  return true;
+}
+function upsertKnowledge(subject, answer, mode){
+  subject = light(subject); answer = light(answer);
+  if (!subject || !answer) return say("Format incomplet. Exemple : « Apprends que sujet = réponse ».");
+  const exact = state.kb.find(x => normKey(x.subject) === normKey(subject));
+  const fuzzy = exact ? null : kbSearch(subject, state.kb.map(x => ({...x, source:"memoire"})));
+  const target = exact || (fuzzy && fuzzy.score >= 0.55 ? state.kb.find(x => x.id === fuzzy.entry.id) : null);
+  if (target){
+    target.subject = target.subject || subject;
+    target.answer = answer;
+    target.updated = Date.now();
+    saveKb();
+    return say("Mémoire corrigée sans doublon : « " + target.subject + " ».", { speakText:"Mémoire corrigée." });
+  }
+  state.kb.push({ id: Date.now() + "-" + Math.random().toString(36).slice(2, 7), subject, answer, created:Date.now(), updated:Date.now() });
+  bumpStat("taught", 1);
+  saveKb();
+  return say("J'ai appris : « " + subject + " ». Mémoire sauvegardée localement.", { speakText:"Nouvelle connaissance apprise." });
+}
+function parseLearn(lc){
+  let m = /^(?:apprends|retiens|corrige)(?:\s+que)?\s+(.+)$/i.exec(lc);
+  if (!m) return null;
+  const rest = m[1];
+  const parts = rest.split(/\s*(?:=|→|:|\bc['’]?est\b)\s*/i);
+  if (parts.length < 2) return null;
+  return { subject:parts.shift(), answer:parts.join(" = ") };
+}
+function forgetKnowledge(subject){
+  const found = kbSearch(subject, state.kb.map(x => ({...x, source:"memoire"})));
+  if (!found || found.score < 0.55) return say("Je ne trouve pas « " + subject + " » dans la mémoire apprise. La base intégrée ne peut pas être supprimée.");
+  const idx = state.kb.findIndex(x => x.id === found.entry.id);
+  const old = state.kb[idx];
+  state.kb.splice(idx, 1); saveKb();
+  return say("J'ai oublié « " + old.subject + " » de la mémoire locale.", { speakText:"Connaissance oubliée." });
+}
+function renderMemory(){
+  if (!$("memStats")) return;
+  const info = computeLevel(state.stats);
+  const stats = $("memStats"); stats.textContent = "";
+  [["Niveau", info.level + " · " + info.title], ["XP", info.xp + (info.next ? " · prochain +" + info.next : " · max")], ["Questions", state.stats.asked || 0], ["Apprises", state.kb.length], ["Base", BASE_KB.length + " fiches"], ["Commandes", state.stats.cmds || 0]].forEach(([k,v]) => {
+    const d = el("div", "stat"); d.append(el("div", "k", k), el("div", "v", String(v))); stats.append(d);
+  });
+  const list = $("memList"); list.textContent = "";
+  if (!state.kb.length){
+    list.append(el("p", "empty", "Aucune fiche apprise. La base intégrée reste disponible."));
+  } else {
+    state.kb.forEach((x, idx) => {
+      const row = el("div", "item");
+      const tx = el("span", "txt", x.subject + " — " + x.answer);
+      tx.append(el("small", null, "n°" + (idx + 1) + " · modifié " + new Date(x.updated || x.created).toLocaleString("fr-FR", { dateStyle:"short", timeStyle:"short" })));
+      const edit = el("button", "minibtn", "✎"); edit.type = "button"; edit.setAttribute("aria-label", "Modifier " + x.subject);
+      edit.addEventListener("click", () => {
+        const ns = prompt("Sujet", x.subject); if (ns == null) return;
+        const na = prompt("Réponse", x.answer); if (na == null) return;
+        x.subject = light(ns) || x.subject; x.answer = light(na) || x.answer; x.updated = Date.now(); saveKb(); addMessage("sys", "Fiche mémoire modifiée.", { store:false });
+      });
+      const del = el("button", "minibtn del", "✕"); del.type = "button"; del.setAttribute("aria-label", "Supprimer " + x.subject);
+      del.addEventListener("click", () => { state.kb.splice(idx, 1); saveKb(); addMessage("sys", "Fiche mémoire supprimée.", { store:false }); });
+      row.append(tx, edit, del); list.append(row);
+    });
+  }
+}
+function exportMemory(){
+  try{
+    const blob = new Blob([JSON.stringify({ app:"ZARVIS", type:"memoire", exporteLe:new Date().toISOString(), stats:state.stats, base:BASE_KB.length, memoire:state.kb }, null, 2)], { type:"application/json" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "zarvis-memoire.json"; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    addMessage("sys", "Mémoire exportée localement en JSON.", { store:false });
+  }catch(e){ addMessage("sys", "Export mémoire impossible dans ce contexte.", { store:false }); }
+}
+function forgetAllMemory(confirmed){
+  if (!confirmed){ state.forgetAllPending = true; return say("Confirmation requise : tapez « Oublie tout vraiment » pour effacer la mémoire apprise."); }
+  state.kb = []; state.forgetAllPending = false; saveKb();
+  return say("Mémoire apprise effacée. La base intégrée reste intacte.", { speakText:"Mémoire effacée." });
 }
 
 /* ==============================================================================
@@ -1479,9 +1751,14 @@ const PROTOCOLS = [
   ["Tâches", ["Ajoute une tâche préparer le dossier", "Mes tâches", "Termine la tâche 1"]],
   ["Notes", ["Note : appeler maman", "Mes notes"]],
   ["Outils", ["Calcule 12 × 4", "Minuteur 5 minutes", "Annule le minuteur", "Donne-moi une idée"]],
+  ["Connaissance", ["Que sais-tu sur Internet ?", "C'est quoi HTML ?", "Quelle est la capitale du Congo ?", "Apprends que sujet = réponse"]],
+  ["Mémoire", ["Ouvre la mémoire", "Oublie sujet", "Oublie tout"]],
   ["Système", ["Scanne le système", "Mode sombre", "Mode clair", "Silence", "Active la voix"]],
-  ["Modules", ["Ouvre les tâches", "Ouvre les notes", "Ouvre les protocoles"]]
+  ["Modules", ["Ouvre les tâches", "Ouvre les notes", "Ouvre les protocoles", "Ouvre la mémoire"]]
 ];
+
+const ALL_CMDS = PROTOCOLS.reduce((acc, g) => acc.concat(g[1]), [])
+  .concat(BASE_KB.slice(0, 18).map(x => "Que sais-tu sur " + x.subject + " ?"));
 function renderProtocols(){
   const box = $("protoList"); box.textContent = "";
   PROTOCOLS.forEach(([group, cmds]) => {
@@ -1512,6 +1789,8 @@ function cmdAide(){
       "Temps — « Quelle heure est-il ? » · « Quelle est la date ? »",
       "Tâches — « Ajoute une tâche … » · « Mes tâches » · « Termine la tâche 1 »",
       "Notes — « Note : … » · « Mes notes »",
+      "Connaissance — « Que sais-tu sur Internet ? » · « Apprends que sujet = réponse »",
+      "Mémoire — « Ouvre la mémoire » · édition, suppression et export JSON",
       "Outils — « Calcule 12 × 4 » · « Minuteur 5 minutes » · « Annule le minuteur »",
       "Modules — « Ouvre les tâches / notes / protocoles »",
       "Système — « Scanne le système » · « Mode sombre » · « Mode clair »",
@@ -1558,8 +1837,19 @@ function processCommand(raw){
   state.lastCmds.push(lc);
   if (state.lastCmds.length > 30) state.lastCmds.shift();
   cmdIndex = state.lastCmds.length;
+  bumpStat("cmds", 1);
 
   let m;
+  if (state.forgetAllPending){
+    if (/^oublie\s+tout\s+vraiment$/i.test(lc)) return forgetAllMemory(true);
+    state.forgetAllPending = false;
+  }
+  if (state.teachPending){
+    const subj = state.teachPending;
+    state.teachPending = null;
+    if (/^(annule|annuler|stop|ignore)$/i.test(lc)) return say("Mode enseigne-moi annulé.");
+    return upsertKnowledge(subj, lc, "teach");
+  }
   /* --- Aide --- */
   if (/^aide$/i.test(lc)) return cmdAide();
   /* --- Salutations --- */
@@ -1594,6 +1884,14 @@ function processCommand(raw){
       { weekday: "long", year: "numeric", month: "long", day: "numeric" });
     return say("Nous sommes le " + d + ".");
   }
+  /* --- Apprentissage & connaissance V2 --- */
+  const learned = parseLearn(lc);
+  if (learned) return upsertKnowledge(learned.subject, learned.answer, "learn");
+  if (/^oublie\s+tout$/i.test(lc)) return forgetAllMemory(false);
+  if ((m = /^oublie\s+(.{1,100})$/i.exec(lc))) return forgetKnowledge(m[1]);
+  const kq = parseKnowledgeQuestion(lc);
+  if (kq) return answerKnowledge(kq);
+
   /* --- Scan système --- */
   if (/^scann?e?\s+(le\s+)?syst[eè]me$/i.test(lc) || /^diagnostic(\s+(syst[eè]me|complet))?$/i.test(lc))
     return runScan();
@@ -1634,12 +1932,13 @@ function processCommand(raw){
   if (/^mes\s+notes$/i.test(lc) || /^(liste|affiche|montre)\s+(mes\s+)?notes$/i.test(lc))
     return listNotes();
   /* --- Ouverture des modules --- */
-  if ((m = /^ouvre?\s+(?:l[ae]s?\s+)?(t[aâ]ches|notes|protocoles?|syst[eè]me|profil|panneau)$/i.exec(lc))){
+  if ((m = /^ouvre?\s+(?:l[ae]s?\s+)?(t[aâ]ches|notes|protocoles?|syst[eè]me|profil|m[eé]moire|panneau)$/i.exec(lc))){
     const key = m[1].toLowerCase();
     const map = { "tâche": "tasks", "tache": "tasks", "tâches": "tasks", "taches": "tasks",
                   "note": "notes", "notes": "notes",
                   "protocole": "protocols", "protocoles": "protocols",
                   "système": "system", "systeme": "system", "panneau": "system",
+                  "mémoire": "memory", "memoire": "memory",
                   "profil": "profile" };
     const id = map[key] || "system";
     selectModule(id, true);
@@ -1664,11 +1963,20 @@ function processCommand(raw){
   }
   /* --- Politesse --- */
   if (/^merci/i.test(lc)) return say("Avec plaisir" + (state.profile.name ? ", " + state.profile.name : "") + ".");
-  /* --- Commande inconnue --- */
+  /* --- Commande inconnue : suggestion locale --- */
+  const sug = ALL_CMDS.map(cmd => ({ cmd, score: simScore(lc, cmd) })).sort((a, b) => b.score - a.score)[0];
   return addRichMessage("zarvis", c => {
     c.append(el("span", null, "Je n'ai pas de protocole pour « "));
     c.append(el("b", null, lc));
-    c.append(el("span", null, " ». Tapez « Aide » pour la liste complète des commandes."));
+    c.append(el("span", null, " »."));
+    if (sug && sug.score >= 0.42){
+      c.append(el("p", null, "Vouliez-vous dire … ?"));
+      const b = el("button", "scanbtn", sug.cmd); b.type = "button";
+      b.addEventListener("click", () => processCommand(sug.cmd));
+      c.append(b);
+    } else {
+      c.append(el("p", null, "Tapez « Aide » pour la liste complète des commandes."));
+    }
   }, { summary: "Commande non reconnue : " + lc, speakText: "Commande non reconnue. Tapez aide." });
 }
 
@@ -1732,6 +2040,13 @@ $("profForm").addEventListener("submit", e => {
   const v = light($("profInput").value);
   if (v){ processCommand("Je m'appelle " + v); $("profInput").value = ""; }
 });
+$("memForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const s = light($("memSubjectInput").value), a = light($("memAnswerInput").value);
+  if (s && a){ upsertKnowledge(s, a, "form"); $("memSubjectInput").value = ""; $("memAnswerInput").value = ""; }
+});
+$("btnMemExport").addEventListener("click", exportMemory);
+$("btnMemClear").addEventListener("click", () => forgetAllMemory(false));
 
 /* Export JSON (Blob local, aucun réseau) et réinitialisation */
 $("btnExport").addEventListener("click", () => {
@@ -1740,7 +2055,7 @@ $("btnExport").addEventListener("click", () => {
       app: "ZARVIS", exporteLe: new Date().toISOString(),
       profil: state.profile,
       preferences: { theme: document.documentElement.dataset.theme, voix: state.voice },
-      taches: state.tasks, notes: state.notes
+      taches: state.tasks, notes: state.notes, memoire: state.kb, evolution: state.stats
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const a = document.createElement("a");
@@ -1760,7 +2075,7 @@ $("btnReset").addEventListener("click", () => {
 
 /* Commandes rapides sous la console */
 [["Aide", "Aide"], ["Mes tâches", "Mes tâches"], ["Scan système", "Scanne le système"],
- ["Une idée", "Donne-moi une idée"], ["Minuteur 5 min", "Minuteur 5 minutes"]]
+ ["Une idée", "Donne-moi une idée"], ["Mémoire", "Ouvre la mémoire"], ["Minuteur 5 min", "Minuteur 5 minutes"]]
 .forEach(([lbl, cmd]) => {
   const b = el("button", null, lbl); b.type = "button";
   b.addEventListener("click", () => processCommand(cmd));
