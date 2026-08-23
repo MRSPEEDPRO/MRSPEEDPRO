@@ -35,14 +35,14 @@ Tout navigateur moderne (Chrome, Edge, Firefox, Safari), ordinateur **et** tél�
 |---|---|
 | Aucun backend | Aucun serveur d'application |
 | Aucune clé API | Rien à configurer, jamais |
-| Aucun appel réseau | Pas de `fetch`, pas de `XMLHttpRequest`, pas de WebSocket |
+| Aucun appel réseau applicatif | Pas de requête distante ni de WebSocket depuis ZARVIS |
 | Aucune dépendance | Zéro CDN, zéro fonte/JS/CSS externe, zéro npm |
-| Calculatrice sûre | Analyseur maison, **sans `eval()`** |
+| Calculatrice sûre | Analyseur maison, sans évaluation dynamique de code |
 | Anti-injection | Tout affichage passe par `textContent` (jamais `innerHTML`) |
 | Données locales | `localStorage` uniquement, préfixe `zrv_`, sur votre appareil |
 | Historique | En `sessionStorage` : mémoire de la session, effacée à la fermeture de l'onglet |
 
-> La **reconnaissance vocale** (bouton 🎙) dépend du navigateur (`SpeechRecognition`) et peut, selon celui-ci, utiliser un service réseau du navigateur. Tout le reste — commandes texte, tâches, notes, minuteur, calculatrice — fonctionne **même avion mode activé**. Si la voix est indisponible, le champ texte reste pleinement fonctionnel.
+> La **reconnaissance vocale** (bouton 🎙) dépend du navigateur (`SpeechRecognition`) et peut, selon celui-ci, utiliser un service réseau du navigateur. Tout le reste — commandes texte, tâches, notes, mémoire, apprentissage, minuteur, calculatrice — fonctionne **même avion mode activé**. Si la voix est indisponible, le champ texte reste pleinement fonctionnel.
 
 ---
 
@@ -77,6 +77,20 @@ Tapez `Aide` dans la console, ou touchez un protocole dans le panneau **Protocol
 | `Note : appeler maman` | Enregistre la note |
 | `Mes notes` | Affiche toutes les notes |
 
+### Connaissance & apprentissage v2
+| Commande | Effet |
+|---|---|
+| `Que sais-tu sur Internet ?` | Cherche dans la base intégrée locale (`BASE_KB`) |
+| `C'est quoi HTML ?` / `Qu'est-ce que CSS ?` | Répond à une question de définition |
+| `Qui est X ?` / `Pourquoi X ?` | Cherche le sujet le plus proche par similarité locale |
+| `Quelle est la capitale du Congo ?` | Répond avec les capitales connues dans la base |
+| `Apprends que sujet = réponse` | Ajoute ou corrige une fiche dans la mémoire locale `zrv_kb` |
+| `Retiens que sujet : réponse` / `Corrige que sujet → réponse` | Variantes d'apprentissage |
+| `Oublie sujet` | Supprime une fiche apprise, sans toucher à la base intégrée |
+| `Oublie tout` puis `Oublie tout vraiment` | Efface toute la mémoire apprise après confirmation |
+
+Quand une question est inconnue, ZARVIS passe en mode **enseigne-moi** : le prochain message devient la réponse mémorisée, sauf `annule`.
+
 ### Outils
 | Commande | Effet |
 |---|---|
@@ -90,7 +104,7 @@ Tapez `Aide` dans la console, ou touchez un protocole dans le panneau **Protocol
 |---|---|
 | `Scanne le système` | Diagnostic visuel complet (stockage, voix, batterie…) |
 | `Mode sombre` / `Mode clair` | Change le thème (persisté) |
-| `Ouvre les tâches` / `Ouvre les notes` / `Ouvre les protocoles` | Affiche le module dans le panneau de données |
+| `Ouvre les tâches` / `Ouvre les notes` / `Ouvre les protocoles` / `Ouvre la mémoire` | Affiche le module dans le panneau de données |
 
 ### Voix
 | Commande | Effet |
@@ -106,10 +120,11 @@ Bonus : `Salut`, `Merci`, `Désactive la voix`, `Bascule le thème`, `Efface la 
 
 - **Noyau central animé** (canvas 2D) : anneaux contra-rotatifs, balayage radar, particules orbitales, pulsation synchronisée avec la parole.
 - **Console de conversation** : messages de l'opérateur et de ZARVIS, historique de session, effet « machine à écrire ».
-- **Sidebar modules** (desktop) / barre du bas (mobile) : Tâches, Notes, Protocoles, Système, Profil.
+- **Sidebar modules** (desktop) / barre du bas (mobile) : Tâches, Notes, Protocoles, Système, Mémoire, Profil.
 - **Panneau de données** : onglets des modules + télémétrie (uptime, tâches, notes, minuteur) et diagnostic système.
 - **Bandeau supérieur** : horloge, état hors-ligne, puce minuteur cliquable, boutons voix / micro / thème.
 - Profil : export JSON complet de vos données (Blob local) et réinitialisation d'un clic.
+- Mémoire : statistiques d'évolution, liste des fiches apprises, édition, suppression et export JSON local.
 
 ## ♿ Accessibilité
 
@@ -130,6 +145,8 @@ Tout est stocké **localement**, rien ne quitte l'appareil :
 | `zrv_theme` | Préférence de thème |
 | `zrv_voice` | Préférence voix |
 | `zrv_timer` | Minuteur en cours |
+| `zrv_kb` | Fiches apprises par l'opérateur |
+| `zrv_stats` | Statistiques d'évolution `{cmds, taught, asked}` |
 | `zrv_history` *(sessionStorage)* | Historique de la session |
 
 Réinitialisation : module **Profil → ⟲ Réinitialiser ZARVIS**, ou videz le stockage du site dans le navigateur.
@@ -138,11 +155,18 @@ Réinitialisation : module **Profil → ⟲ Réinitialiser ZARVIS**, ou videz le
 
 - `zarvis.html` — application complète monofichier (HTML + CSS + JS embarqués, commentés).
 - `ZARVIS.md` — cette documentation.
-- Le noyau JS isole un **bloc de fonctions pures** (calculatrice, analyse des durées, normalisation) entre `/*__PURE_START__*/` et `/*__PURE_END__*/`, testable sans navigateur.
+- Le noyau JS isole un **bloc de fonctions pures** (calculatrice, analyse des durées, normalisation, similarité Jaccard/trigrammes) entre `/*__PURE_START__*/` et `/*__PURE_END__*/`, testable sans navigateur.
 - Isolation totale : aucune modification des autres fichiers du dépôt.
+
+## 🧠 Moteur mémoire v2
+
+- Base intégrée `BASE_KB` : environ 38 fiches en français, orientées tech, sciences et géographie.
+- Recherche locale : `normKey`, Jaccard de mots (60 %), trigrammes (40 %), bonus d'inclusion, seuil de réponse `0.55`.
+- Suggestions : si une commande ressemble à un protocole connu, un bouton « Vouliez-vous dire … ? » relance la commande choisie.
+- Évolution : les compteurs `cmds`, `taught`, `asked` produisent un niveau affiché dans le module Mémoire.
 
 ## ⚠️ Limites connues
 
 - La reconnaissance vocale nécessite Chrome/Edge (technologie navigateur) et éventuellement une connexion selon le navigateur ; la synthèse vocale dépend des voix installées sur l'appareil.
-- L'historique est volontairement **de session** ; les tâches/notes/profil, eux, sont persistants.
+- L'historique est volontairement **de session** ; les tâches/notes/profil/mémoire, eux, sont persistants.
 - Les barres de « télémétrie » du module Système sont décoratives (étiquetées *simulé*) ; les statistiques réelles (batterie, mémoire JS, stockage) sont affichées quand le navigateur les expose.
