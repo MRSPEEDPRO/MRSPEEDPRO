@@ -1,0 +1,1987 @@
+<!doctype html>
+<html lang="fr" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#03060a">
+<meta name="description" content="ZARVIS — assistant personnel autonome 100 % hors-ligne, inspiré des interfaces de science-fiction. Aucun serveur, aucune clé API, aucune donnée envoyée.">
+<!-- Favicon embarquée en data-URI SVG : aucune ressource réseau -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='28' fill='%2303060a'/%3E%3Ccircle cx='32' cy='32' r='26' fill='none' stroke='%2300e5ff' stroke-width='2' stroke-dasharray='6 4'/%3E%3Ccircle cx='32' cy='32' r='12' fill='%2300e5ff' opacity='.85'/%3E%3Ccircle cx='32' cy='32' r='6' fill='%23e6fbff'/%3E%3C/svg%3E">
+<title>ZARVIS — Assistant personnel autonome</title>
+<style>
+/* ==========================================================================
+   ZARVIS — Interface HUD futuriste
+   Monofichier : CSS + JS embarqués. Aucune dépendance, aucun appel réseau.
+   Deux thèmes (sombre / clair) pilotés par l'attribut [data-theme].
+   ========================================================================== */
+
+/* ---------- Variables de thème ---------- */
+:root{
+  --font-ui: "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", "JetBrains Mono", Consolas, "Courier New", monospace;
+  --radius: 10px;
+  --speed: .35s;
+}
+[data-theme="dark"]{
+  --bg: #03060a;
+  --bg-2: #050b13;
+  --panel: rgba(9, 18, 28, .78);
+  --panel-solid: #08111c;
+  --panel-2: rgba(13, 26, 40, .65);
+  --line: rgba(0, 229, 255, .18);
+  --line-strong: rgba(0, 229, 255, .45);
+  --cyan: #00e5ff;
+  --cyan-soft: #7deeff;
+  --violet: #a970ff;
+  --green: #3dffa0;
+  --amber: #ffd166;
+  --danger: #ff5c7a;
+  --text: #d8eef8;
+  --muted: #7fa6b8;
+  --faint: #42626f;
+  --glow: 0 0 18px rgba(0, 229, 255, .35);
+  --scan: rgba(0, 229, 255, .05);
+  --user-bubble: rgba(0, 229, 255, .09);
+  --zarvis-bubble: rgba(169, 112, 255, .10);
+  color-scheme: dark;
+}
+[data-theme="light"]{
+  --bg: #e9eff4;
+  --bg-2: #dfe8ee;
+  --panel: rgba(255, 255, 255, .82);
+  --panel-solid: #ffffff;
+  --panel-2: rgba(240, 247, 251, .9);
+  --line: rgba(2, 105, 141, .20);
+  --line-strong: rgba(2, 105, 141, .5);
+  --cyan: #0284b4;
+  --cyan-soft: #0a6e96;
+  --violet: #6d28d9;
+  --green: #0a8f5b;
+  --amber: #92610a;
+  --danger: #c22347;
+  --text: #0c2230;
+  --muted: #41657a;
+  --faint: #7e9aac;
+  --glow: 0 0 14px rgba(2, 132, 180, .25);
+  --scan: rgba(2, 132, 180, .05);
+  --user-bubble: rgba(2, 132, 180, .10);
+  --zarvis-bubble: rgba(109, 40, 217, .08);
+  color-scheme: light;
+}
+
+/* ---------- Base ---------- */
+*,*::before,*::after{ box-sizing: border-box }
+html,body{ height: 100% }
+body{
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 15px;
+  color: var(--text);
+  background:
+    radial-gradient(1100px 700px at 78% -10%, rgba(169,112,255,.14), transparent 60%),
+    radial-gradient(900px 620px at -10% 110%, rgba(0,229,255,.10), transparent 55%),
+    radial-gradient(700px 500px at 50% 50%, rgba(61,255,160,.05), transparent 60%),
+    var(--bg);
+  overflow: hidden;
+}
+[data-theme="light"] body{
+  background:
+    radial-gradient(1100px 700px at 78% -10%, rgba(109,40,217,.10), transparent 60%),
+    radial-gradient(900px 620px at -10% 110%, rgba(2,132,180,.10), transparent 55%),
+    var(--bg);
+}
+::selection{ background: var(--cyan); color: #031018 }
+
+/* Lien d'évitement pour l'accessibilité clavier */
+.skip{
+  position: fixed; top: -60px; left: 12px; z-index: 200;
+  background: var(--cyan); color: #031018; font-weight: 700;
+  padding: 10px 16px; border-radius: 0 0 8px 8px; text-decoration: none;
+  transition: top .2s;
+}
+.skip:focus{ top: 0 }
+
+.vhidden{
+  position: absolute !important; width: 1px; height: 1px;
+  margin: -1px; padding: 0; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+button{ font: inherit; color: inherit; }
+:focus-visible{
+  outline: 2px solid var(--cyan);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ---------- Structure générale ---------- */
+.app{ display: flex; flex-direction: column; height: 100dvh }
+.layout{
+  flex: 1; min-height: 0;
+  display: grid; grid-template-columns: 1fr;
+}
+
+/* ---------- Barre supérieure ---------- */
+.topbar{
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, var(--panel), transparent);
+  backdrop-filter: blur(8px);
+  z-index: 30;
+}
+.brand{ display: flex; align-items: center; gap: 10px; min-width: 0 }
+.brand-mark{
+  width: 34px; height: 34px; flex: none;
+  border: 1px solid var(--line-strong); border-radius: 50%;
+  display: grid; place-items: center;
+  color: var(--cyan); font-size: 17px; text-shadow: var(--glow);
+  animation: markSpin 14s linear infinite;
+}
+@keyframes markSpin{ to{ transform: rotate(360deg) } }
+.brand h1{
+  margin: 0; font-size: 17px; letter-spacing: .28em;
+  color: var(--cyan); text-shadow: var(--glow); white-space: nowrap;
+}
+.brand h1 .z{ color: var(--violet) }
+.brand-sub{
+  display: block; font-size: 10px; letter-spacing: .18em;
+  color: var(--muted); text-transform: uppercase; font-weight: 400;
+}
+.topbar .spacer{ flex: 1 }
+.chip{
+  display: inline-flex; align-items: center; gap: 7px;
+  font-family: var(--font-mono); font-size: 10.5px;
+  letter-spacing: .12em; text-transform: uppercase;
+  color: var(--muted);
+  border: 1px solid var(--line); border-radius: 999px;
+  padding: 5px 11px; background: var(--panel-2);
+  white-space: nowrap;
+}
+.chip .dot{
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--green); box-shadow: 0 0 8px var(--green);
+  animation: pulse 2.2s ease-in-out infinite;
+}
+@keyframes pulse{ 50%{ opacity: .35 } }
+.chip.clock{ color: var(--cyan-soft); min-width: 76px; justify-content: center }
+.chip.operator{ color: var(--violet); border-color: rgba(169,112,255,.35) }
+.chip.timer{
+  color: var(--amber); border-color: rgba(255,209,102,.4);
+  cursor: pointer;
+}
+.chip.timer strong{ font-size: 12px }
+.iconbtn{
+  display: inline-grid; place-items: center;
+  width: 36px; height: 36px; flex: none;
+  border: 1px solid var(--line); border-radius: 9px;
+  background: var(--panel-2); color: var(--muted);
+  font-size: 15px; cursor: pointer; transition: var(--speed);
+}
+.iconbtn:hover{ color: var(--cyan); border-color: var(--line-strong); box-shadow: var(--glow) }
+.iconbtn[aria-pressed="true"]{ color: var(--cyan); border-color: var(--line-strong); text-shadow: var(--glow) }
+.iconbtn[disabled]{ opacity: .38; cursor: not-allowed; box-shadow: none }
+.iconbtn.recording{ color: var(--danger); border-color: var(--danger); animation: pulse 1s ease-in-out infinite }
+
+/* ---------- Colonne centrale ---------- */
+.center{
+  display: flex; flex-direction: column; min-height: 0; min-width: 0;
+}
+.core-zone{
+  position: relative; flex: none;
+  padding: 14px 10px 6px;
+  border-bottom: 1px dashed var(--line);
+}
+.core-stage{
+  position: relative;
+  width: clamp(190px, 30vh, 380px);
+  aspect-ratio: 1; margin-inline: auto;
+}
+.core-stage canvas{ position: absolute; inset: 0; width: 100%; height: 100% }
+/* Lueur de secours visible même si le canvas est indisponible */
+.core-fallback{
+  position: absolute; inset: 18%;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--cyan) 0%, transparent 62%);
+  opacity: .18; filter: blur(6px);
+}
+/* Coins façon cadre HUD */
+.hud-corners{ position: absolute; inset: -6px; pointer-events: none }
+.hud-corners i{
+  position: absolute; width: 22px; height: 22px;
+  border: 1.5px solid var(--line-strong);
+}
+.hud-corners i:nth-child(1){ top: 0; left: 0; border-right: 0; border-bottom: 0 }
+.hud-corners i:nth-child(2){ top: 0; right: 0; border-left: 0; border-bottom: 0 }
+.hud-corners i:nth-child(3){ bottom: 0; left: 0; border-right: 0; border-top: 0 }
+.hud-corners i:nth-child(4){ bottom: 0; right: 0; border-left: 0; border-top: 0 }
+.core-label{
+  position: absolute;
+  font-family: var(--font-mono); font-size: 9.5px;
+  letter-spacing: .22em; text-transform: uppercase; color: var(--faint);
+}
+.core-label.tl{ top: -13px; left: 2px }
+.core-label.tr{ top: -13px; right: 2px }
+.core-label.bl{ bottom: -13px; left: 2px }
+.core-label.br{ bottom: -13px; right: 2px; color: var(--green) }
+/* Balayage lumineux discret sur la zone du noyau */
+.core-zone::after{
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(transparent 0%, var(--scan) 50%, transparent 100%);
+  background-size: 100% 220px;
+  animation: scanMove 9s linear infinite;
+  opacity: .7;
+}
+@keyframes scanMove{ from{ background-position: 0 -220px } to{ background-position: 0 120% } }
+
+/* ---------- Console de conversation ---------- */
+.console-zone{
+  flex: 1; min-height: 0;
+  display: flex; flex-direction: column;
+  background-image:
+    linear-gradient(var(--line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size: 46px 46px;
+  background-position: center;
+}
+.console{
+  flex: 1; min-height: 0;
+  overflow-y: auto;
+  padding: 16px 14px 8px;
+  scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent;
+}
+.msg{ max-width: min(560px, 88%); margin: 0 0 13px }
+.msg-head{
+  display: flex; align-items: baseline; gap: 8px;
+  font-family: var(--font-mono); font-size: 9.5px;
+  letter-spacing: .2em; text-transform: uppercase; color: var(--faint);
+  margin-bottom: 4px;
+}
+.msg-zarvis .msg-head .a{ color: var(--violet) }
+.msg-user .msg-head .a{ color: var(--cyan) }
+.msg-body{
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 10px 13px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.msg-user{ margin-left: auto }
+.msg-user .msg-head{ justify-content: flex-end }
+.msg-user .msg-body{
+  background: var(--user-bubble);
+  border-color: rgba(0,229,255,.35);
+  border-top-right-radius: 3px;
+}
+.msg-zarvis .msg-body{
+  background: var(--zarvis-bubble);
+  border-color: rgba(169,112,255,.30);
+  border-top-left-radius: 3px;
+  box-shadow: inset 2px 0 0 var(--violet);
+}
+.msg-sys{ max-width: 100%; margin: 4px 0 10px; text-align: center }
+.msg-sys .msg-body{
+  background: none; border-style: dashed;
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--muted); padding: 6px 12px;
+}
+.msg-body ol,.msg-body ul{ margin: 6px 0 2px; padding-left: 22px }
+.msg-body li{ margin: 3px 0 }
+.msg-body li.done{ text-decoration: line-through; opacity: .6 }
+.kbd{
+  font-family: var(--font-mono); font-size: .92em;
+  border: 1px solid var(--line-strong); border-radius: 4px;
+  padding: 0 5px; color: var(--cyan-soft);
+}
+.sysscan{ font-family: var(--font-mono); font-size: 12px }
+.sysscan .ok{ color: var(--green) }
+.sysscan .ko{ color: var(--danger) }
+.sysscan .ln{ opacity: 0; animation: lnIn .25s forwards }
+@keyframes lnIn{ to{ opacity: 1 } }
+
+/* ---------- Zone de saisie ---------- */
+.quickbar{
+  display: flex; gap: 7px; padding: 9px 12px 0;
+  overflow-x: auto; scrollbar-width: none;
+}
+.quickbar button{
+  flex: none;
+  font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .08em;
+  color: var(--muted); background: var(--panel-2);
+  border: 1px solid var(--line); border-radius: 999px;
+  padding: 6px 12px; cursor: pointer; transition: var(--speed);
+}
+.quickbar button:hover{ color: var(--cyan); border-color: var(--line-strong) }
+.cmdform{
+  display: flex; gap: 9px; padding: 10px 12px 6px;
+}
+.cmdform input{
+  flex: 1; min-width: 0;
+  font-family: var(--font-mono); font-size: 14px;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+}
+.cmdform input::placeholder{ color: var(--faint) }
+.cmdform input:focus{
+  outline: none; border-color: var(--line-strong); box-shadow: var(--glow);
+}
+.sendbtn{
+  flex: none; width: 48px;
+  border: 1px solid var(--line-strong); border-radius: var(--radius);
+  background: linear-gradient(135deg, rgba(0,229,255,.18), rgba(169,112,255,.18));
+  color: var(--cyan); font-size: 17px; cursor: pointer; transition: var(--speed);
+}
+.sendbtn:hover{ box-shadow: var(--glow); text-shadow: var(--glow) }
+.offnote{
+  margin: 0; padding: 4px 14px 10px;
+  font-size: 11px; color: var(--faint); line-height: 1.5;
+}
+.offnote b{ color: var(--muted); font-weight: 600 }
+
+/* ---------- Sidebar modules ---------- */
+.sidebar{
+  display: none;
+  flex-direction: column; gap: 5px;
+  padding: 14px 10px;
+  border-right: 1px solid var(--line);
+  background: var(--panel);
+  overflow-y: auto;
+}
+.sidebar h2, .deck h2{
+  margin: 2px 6px 10px;
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: .3em; text-transform: uppercase; color: var(--faint);
+}
+.modbtn{
+  display: flex; align-items: center; gap: 11px;
+  width: 100%; text-align: left;
+  padding: 10px 12px;
+  border: 1px solid transparent; border-radius: var(--radius);
+  background: none; cursor: pointer;
+  color: var(--muted); transition: var(--speed);
+}
+.modbtn:hover{ background: var(--panel-2); color: var(--text) }
+.modbtn[aria-current="true"]{
+  background: var(--panel-2); color: var(--cyan);
+  border-color: var(--line-strong); box-shadow: inset 2px 0 0 var(--cyan);
+}
+.modbtn .ico{ width: 22px; text-align: center; font-size: 15px }
+.modbtn .lbl{ flex: 1; min-width: 0 }
+.modbtn .lbl b{ display: block; font-size: 13px; font-weight: 600; letter-spacing: .04em }
+.modbtn .lbl small{ display: block; font-size: 10px; color: var(--faint) }
+.badge{
+  font-family: var(--font-mono); font-size: 10px;
+  border: 1px solid var(--line-strong); border-radius: 999px;
+  color: var(--cyan); padding: 1px 8px; min-width: 26px; text-align: center;
+}
+.badge[hidden]{ display: none }
+
+/* ---------- Panneau de données (droite / tiroir mobile) ---------- */
+.scrim{
+  position: fixed; inset: 0; z-index: 50;
+  background: rgba(2, 6, 10, .55); backdrop-filter: blur(2px);
+  opacity: 0; pointer-events: none; transition: opacity .3s;
+}
+.scrim.show{ opacity: 1; pointer-events: auto }
+.deck{
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 60;
+  width: min(430px, 94vw);
+  display: flex; flex-direction: column;
+  background: var(--panel-solid);
+  border-left: 1px solid var(--line);
+  box-shadow: -18px 0 50px rgba(0,0,0,.45);
+  transform: translateX(104%);
+  visibility: hidden;
+  transition: transform var(--speed), visibility var(--speed);
+}
+.deck.open{ transform: none; visibility: visible }
+.deck-head{
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 12px 0;
+}
+.deck-head h2{ flex: 1; margin: 0 }
+.deck-close{ display: inline-grid }
+.tabs{
+  display: flex; gap: 4px; flex-wrap: wrap;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.tabs [role="tab"]{
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: .12em; text-transform: uppercase;
+  color: var(--muted); background: none;
+  border: 1px solid var(--line); border-radius: 7px;
+  padding: 6px 10px; cursor: pointer; transition: var(--speed);
+}
+.tabs [role="tab"][aria-selected="true"]{
+  color: var(--cyan); border-color: var(--line-strong);
+  box-shadow: inset 0 -2px 0 var(--cyan);
+}
+.deck-body{ flex: 1; min-height: 0; overflow-y: auto; padding: 14px }
+.view h3{
+  margin: 0 0 12px; font-size: 13px; letter-spacing: .18em;
+  text-transform: uppercase; color: var(--cyan-soft);
+  border-bottom: 1px dashed var(--line); padding-bottom: 9px;
+}
+.view .empty{
+  font-family: var(--font-mono); font-size: 12px; color: var(--faint);
+  border: 1px dashed var(--line); border-radius: var(--radius);
+  padding: 16px; text-align: center; line-height: 1.7;
+}
+.item{
+  display: flex; align-items: center; gap: 9px;
+  border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--panel-2);
+  padding: 9px 11px; margin-bottom: 8px;
+  animation: lnIn .3s;
+}
+.item .txt{ flex: 1; min-width: 0; line-height: 1.45; overflow-wrap: anywhere }
+.item .txt small{ display: block; font-family: var(--font-mono); font-size: 9.5px; color: var(--faint); letter-spacing: .08em }
+.item.done .txt{ text-decoration: line-through; opacity: .55 }
+.minibtn{
+  flex: none; width: 30px; height: 30px;
+  display: inline-grid; place-items: center;
+  border: 1px solid var(--line); border-radius: 8px;
+  background: none; color: var(--muted); cursor: pointer; transition: var(--speed);
+}
+.minibtn:hover{ color: var(--green); border-color: var(--green) }
+.minibtn.del:hover{ color: var(--danger); border-color: var(--danger) }
+.inlineform{ display: flex; gap: 7px; margin-top: 12px }
+.inlineform input{
+  flex: 1; min-width: 0;
+  font-family: var(--font-mono); font-size: 12.5px;
+  color: var(--text); background: var(--panel);
+  border: 1px solid var(--line); border-radius: 8px; padding: 9px 11px;
+}
+.inlineform input:focus{ outline: none; border-color: var(--line-strong) }
+.inlineform button{
+  border: 1px solid var(--line-strong); border-radius: 8px;
+  background: none; color: var(--cyan); padding: 0 14px; cursor: pointer;
+}
+.statgrid{
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px;
+}
+.stat{
+  border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--panel-2); padding: 10px 12px;
+}
+.stat .k{
+  font-family: var(--font-mono); font-size: 9px;
+  letter-spacing: .22em; text-transform: uppercase; color: var(--faint);
+}
+.stat .v{
+  font-family: var(--font-mono); font-size: 15px; color: var(--cyan-soft);
+  margin-top: 4px; overflow-wrap: anywhere;
+}
+.feat{
+  width: 100%; border-collapse: collapse;
+  font-size: 12.5px; margin-bottom: 14px;
+}
+.feat td{
+  border-bottom: 1px dashed var(--line); padding: 7px 4px;
+}
+.feat td:last-child{ text-align: right; font-family: var(--font-mono); font-size: 11.5px }
+.feat .ok{ color: var(--green) }
+.feat .ko{ color: var(--muted) }
+.telemetry{ margin-top: 4px }
+.telemetry .row{ margin-bottom: 11px }
+.telemetry .row span{
+  display: flex; justify-content: space-between;
+  font-family: var(--font-mono); font-size: 9.5px;
+  letter-spacing: .18em; text-transform: uppercase; color: var(--faint);
+  margin-bottom: 4px;
+}
+.telemetry .bar{
+  height: 5px; border-radius: 3px; overflow: hidden;
+  background: var(--panel-2); border: 1px solid var(--line);
+}
+.telemetry .bar i{
+  display: block; height: 100%; width: 40%;
+  background: linear-gradient(90deg, var(--cyan), var(--violet));
+  animation: telem 4.5s ease-in-out infinite alternate;
+}
+.telemetry .row:nth-child(2) .bar i{ animation-duration: 6s; animation-delay: -2s }
+.telemetry .row:nth-child(3) .bar i{ animation-duration: 5.2s; animation-delay: -4s }
+@keyframes telem{ from{ width: 18% } to{ width: 86% } }
+.proto-group{ margin-bottom: 15px }
+.proto-group h4{
+  margin: 0 0 7px; font-family: var(--font-mono); font-size: 9.5px;
+  letter-spacing: .24em; text-transform: uppercase; color: var(--violet);
+}
+.proto-list{ display: flex; flex-wrap: wrap; gap: 6px }
+.proto-list button{
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--text); background: var(--panel-2);
+  border: 1px solid var(--line); border-radius: 999px;
+  padding: 6px 11px; cursor: pointer; transition: var(--speed);
+}
+.proto-list button:hover{ color: var(--cyan); border-color: var(--line-strong) }
+.deck-foot{
+  border-top: 1px solid var(--line);
+  padding: 10px 12px;
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
+}
+.deck-foot .mini{ text-align: center }
+.deck-foot .mini .k{
+  font-family: var(--font-mono); font-size: 8px;
+  letter-spacing: .2em; color: var(--faint); text-transform: uppercase;
+}
+.deck-foot .mini .v{
+  font-family: var(--font-mono); font-size: 12.5px; color: var(--cyan-soft); margin-top: 2px;
+}
+.deck-foot .mini .v.warn{ color: var(--amber) }
+.profile-actions{ display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px }
+.profile-actions button{
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: .06em;
+  color: var(--muted); background: var(--panel-2);
+  border: 1px solid var(--line); border-radius: 8px;
+  padding: 9px 13px; cursor: pointer;
+}
+.profile-actions button:hover{ color: var(--cyan); border-color: var(--line-strong) }
+.profile-actions button.danger:hover{ color: var(--danger); border-color: var(--danger) }
+.scanbtn{
+  width: 100%; margin-bottom: 14px;
+  font-family: var(--font-mono); font-size: 11.5px; letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--cyan); background: linear-gradient(135deg, rgba(0,229,255,.10), rgba(169,112,255,.10));
+  border: 1px solid var(--line-strong); border-radius: var(--radius);
+  padding: 11px; cursor: pointer; transition: var(--speed);
+}
+.scanbtn:hover{ box-shadow: var(--glow) }
+
+/* ---------- Barre de modules mobile ---------- */
+.bottombar{
+  display: flex; z-index: 40;
+  border-top: 1px solid var(--line);
+  background: var(--panel-solid);
+  padding: 5px 5px calc(5px + env(safe-area-inset-bottom, 0));
+}
+.bottombar button{
+  flex: 1; display: grid; justify-items: center; gap: 2px;
+  padding: 6px 2px;
+  background: none; border: 0; border-radius: 8px;
+  color: var(--muted); cursor: pointer;
+  font-size: 10px; letter-spacing: .05em;
+}
+.bottombar button .ico{ font-size: 16px }
+.bottombar button[aria-current="true"]{ color: var(--cyan); text-shadow: var(--glow) }
+
+/* ---------- Grands écrans ---------- */
+@media (min-width: 1024px){
+  .layout{ grid-template-columns: 240px 1fr }
+  .sidebar{ display: flex }
+  .bottombar, .btn-panel-mobile{ display: none }
+}
+@media (min-width: 1280px){
+  .layout{ grid-template-columns: 240px 1fr 380px }
+  .deck{
+    position: static; width: auto; z-index: 10;
+    transform: none; visibility: visible;
+    box-shadow: none; border-left-style: dashed;
+  }
+  .deck-close, .btn-panel-mobile{ display: none }
+  .scrim{ display: none }
+}
+
+/* ---------- Mouvement réduit : on fige toutes les animations décoratives ---------- */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+  .core-zone::after{ animation: none; opacity: .3; background: none }
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#saisie">Aller directement à la saisie de commande</a>
+
+<div class="app">
+
+  <!-- ======================= BARRE SUPÉRIEURE ======================= -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">⬡</span>
+      <h1>Z<span class="z">·</span>A<span class="z">·</span>R<span class="z">·</span>V<span class="z">·</span>I<span class="z">·</span>S
+        <span class="brand-sub">Assistant autonome · noyau 100 % local</span>
+      </h1>
+    </div>
+    <span class="spacer"></span>
+    <span class="chip operator" id="chipOperator" hidden>Opérateur : <b id="chipOperatorName"></b></span>
+    <button class="chip timer" id="chipTimer" hidden type="button"
+            aria-label="Minuteur en cours. Activer pour annuler."></button>
+    <span class="chip"><span class="dot" aria-hidden="true"></span>Hors-ligne</span>
+    <time class="chip clock" id="chipClock" aria-label="Horloge système">--:--:--</time>
+    <button class="iconbtn" id="btnVoice" type="button" aria-pressed="true"
+            aria-label="Synthèse vocale : activée" title="Synthèse vocale (Silence / Active la voix)">🔊</button>
+    <button class="iconbtn" id="btnMic" type="button" aria-pressed="false"
+            aria-label="Dictée vocale" title="Dictée vocale">🎙</button>
+    <button class="iconbtn" id="btnTheme" type="button"
+            aria-label="Basculer entre le thème sombre et le thème clair">☾</button>
+    <button class="iconbtn btn-panel-mobile" id="btnPanel" type="button" aria-expanded="false"
+            aria-controls="deck" aria-label="Ouvrir le panneau des modules">◧</button>
+  </header>
+
+  <div class="layout">
+
+    <!-- ======================= SIDEBAR MODULES ======================= -->
+    <nav class="sidebar" aria-label="Modules ZARVIS">
+      <h2>Modules</h2>
+      <div id="sideModules"><!-- boutons de modules générés par JS --></div>
+    </nav>
+
+    <!-- ======================= COLONNE CENTRALE ======================= -->
+    <main class="center">
+      <section class="core-zone" aria-label="Noyau visuel de ZARVIS">
+        <div class="core-stage">
+          <div class="core-fallback" aria-hidden="true"></div>
+          <canvas id="core" aria-hidden="true"></canvas>
+          <p class="vhidden">Animation décorative : noyau lumineux entouré d'anneaux rotatifs et d'un balayage radar.</p>
+          <div class="hud-corners" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+          <span class="core-label tl" aria-hidden="true">Noyau // ZARVIS</span>
+          <span class="core-label tr" aria-hidden="true" id="coreState">État : veille</span>
+          <span class="core-label bl" aria-hidden="true">Latence 0 ms · local</span>
+          <span class="core-label br" aria-hidden="true">▮▮▮▯ 87 %</span>
+        </div>
+      </section>
+
+      <div class="console-zone">
+        <h2 class="vhidden">Console de conversation</h2>
+        <div class="console" id="console" role="log" aria-live="polite" aria-relevant="additions"
+             aria-label="Historique de la conversation"></div>
+
+        <div class="quickbar" id="quickbar" aria-label="Commandes rapides"></div>
+
+        <form class="cmdform" id="cmdform" autocomplete="off">
+          <label class="vhidden" for="saisie">Tapez une commande pour ZARVIS</label>
+          <input id="saisie" name="saisie" type="text" maxlength="300" enterkeyhint="send"
+                 placeholder="Tapez une commande… (ex. : Aide)" spellcheck="false">
+          <button class="sendbtn" type="submit" aria-label="Envoyer la commande">➤</button>
+        </form>
+        <p class="offnote" id="offnote">
+          <b>100 % hors-ligne :</b> les commandes texte sont exécutées localement, sans réseau ni serveur.
+          La reconnaissance vocale dépend du navigateur et peut nécessiter une connexion selon celui-ci ;
+          le clavier reste toujours pleinement fonctionnel.
+        </p>
+      </div>
+    </main>
+
+    <!-- ======================= PANNEAU DE DONNÉES ======================= -->
+    <aside class="deck" id="deck" aria-label="Panneau des modules et état du système">
+      <div class="deck-head">
+        <h2>Panneau de données</h2>
+        <button class="iconbtn deck-close" id="deckClose" type="button" aria-label="Fermer le panneau">✕</button>
+      </div>
+
+      <div class="tabs" role="tablist" aria-label="Modules" id="tabs"></div>
+
+      <div class="deck-body">
+        <section class="view" id="view-tasks" role="tabpanel" aria-labelledby="tab-tasks">
+          <h3>Gestion des tâches</h3>
+          <div id="taskList"></div>
+          <form class="inlineform" id="taskForm">
+            <label class="vhidden" for="taskInput">Nouvelle tâche</label>
+            <input id="taskInput" type="text" maxlength="120" placeholder="Nouvelle tâche…">
+            <button type="submit" aria-label="Ajouter la tâche">＋</button>
+          </form>
+        </section>
+
+        <section class="view" id="view-notes" role="tabpanel" aria-labelledby="tab-notes" hidden>
+          <h3>Bloc-notes local</h3>
+          <div id="noteList"></div>
+          <form class="inlineform" id="noteForm">
+            <label class="vhidden" for="noteInput">Nouvelle note</label>
+            <input id="noteInput" type="text" maxlength="200" placeholder="Nouvelle note…">
+            <button type="submit" aria-label="Ajouter la note">＋</button>
+          </form>
+        </section>
+
+        <section class="view" id="view-protocols" role="tabpanel" aria-labelledby="tab-protocols" hidden>
+          <h3>Protocoles de commande</h3>
+          <p style="font-size:11.5px;color:var(--muted);margin:0 0 12px;line-height:1.6">
+            Touchez un protocole pour le placer dans la console. Toutes les commandes
+            s'exécutent localement, sans réseau.
+          </p>
+          <div id="protoList"></div>
+        </section>
+
+        <section class="view" id="view-system" role="tabpanel" aria-labelledby="tab-system" hidden>
+          <h3>État du système</h3>
+          <button class="scanbtn" id="scanBtn" type="button">◈ Lancer le scan système</button>
+          <div class="statgrid" id="statGrid"></div>
+          <table class="feat" id="featTable" aria-label="Capacités détectées"></table>
+          <div class="telemetry" aria-hidden="true">
+            <div class="row"><span>Flux noyau <em>simulé</em></span><span>Alpha</span></div>
+            <div class="bar"><i></i></div>
+            <div class="row"><span>Matrice neurale <em>simulé</em></span><span>Bêta</span></div>
+            <div class="bar"><i></i></div>
+            <div class="row"><span>Synchronisation <em>simulé</em></span><span>Gamma</span></div>
+            <div class="bar"><i></i></div>
+          </div>
+        </section>
+
+        <section class="view" id="view-profile" role="tabpanel" aria-labelledby="tab-profile" hidden>
+          <h3>Profil opérateur</h3>
+          <div class="statgrid">
+            <div class="stat"><div class="k">Nom</div><div class="v" id="profName">—</div></div>
+            <div class="stat"><div class="k">Voix</div><div class="v" id="profVoice">—</div></div>
+          </div>
+          <form class="inlineform" id="profForm" style="margin-top:0">
+            <label class="vhidden" for="profInput">Votre nom d'opérateur</label>
+            <input id="profInput" type="text" maxlength="40" placeholder="Votre nom…">
+            <button type="submit" aria-label="Enregistrer le nom">✓</button>
+          </form>
+          <div class="profile-actions">
+            <button type="button" id="btnExport">⭳ Exporter mes données (JSON)</button>
+            <button type="button" id="btnReset" class="danger">⟲ Réinitialiser ZARVIS</button>
+          </div>
+          <p style="font-size:11px;color:var(--faint);margin-top:14px;line-height:1.6">
+            Toutes les données sont stockées dans le <span class="kbd">localStorage</span> de ce
+            navigateur, sur cet appareil uniquement. Rien n'est jamais transmis à un serveur.
+          </p>
+        </section>
+      </div>
+
+      <div class="deck-foot" aria-label="Télémétrie rapide">
+        <div class="mini"><div class="k">Uptime</div><div class="v" id="ftUptime">00:00</div></div>
+        <div class="mini"><div class="k">Tâches</div><div class="v" id="ftTasks">0</div></div>
+        <div class="mini"><div class="k">Notes</div><div class="v" id="ftNotes">0</div></div>
+        <div class="mini"><div class="k">Minuteur</div><div class="v warn" id="ftTimer">--:--</div></div>
+      </div>
+    </aside>
+    <div class="scrim" id="scrim"></div>
+  </div>
+
+  <!-- ======================= NAV MODULES MOBILE ======================= -->
+  <nav class="bottombar" id="bottombar" aria-label="Modules (mobile)"></nav>
+</div>
+
+<script>
+"use strict";
+/* ==============================================================================
+   ZARVIS — Noyau logique (JavaScript embarqué)
+   Aucun fetch, aucun XMLHttpRequest, aucune API distante, aucun eval().
+   Toutes les données vivent dans localStorage (et l'historique en sessionStorage).
+   ============================================================================== */
+
+/*__PURE_START__*/
+/* ---------- Bloc PUR : fonctions sans dépendance au DOM (testables) ---------- */
+
+/* Normalisation légère d'une commande : espaces compactés, apostrophes unifiées,
+   ponctuation finale retirée. La casse et les accents sont CONSERVÉS afin que les
+   extractions (nom, tâche, note) gardent l'orthographe de l'utilisateur. */
+function light(s){
+  return String(s == null ? "" : s)
+    .replace(/[’‘ʼ]/g, "'")
+    .replace(/\s+/g, " ")
+    .replace(/[?!.…;\s]+$/g, "")
+    .trim();
+}
+
+/* Calculatrice sécurisée AUCUN eval() :
+   analyseur à descente récursive (expression → terme → puissance → unaire → primaire).
+   Accepte + - * / × ÷ ^ %, parenthèses, décimaux (point ou virgule). */
+function calculate(expr){
+  const s = String(expr)
+    .replace(/×/g, "*").replace(/÷/g, "/")
+    .replace(/,/g, ".").replace(/\s+/g, "");
+  if (s === "" || !/^[-+0-9.()+*/^%]+$/.test(s)) throw new Error("Expression invalide");
+  let i = 0;
+  const eat = c => { if (s[i] === c){ i++; return true; } return false; };
+  function parseExpr(){ let v = parseTerm();
+    for(;;){ if (eat("+")) v += parseTerm(); else if (eat("-")) v -= parseTerm(); else return v; } }
+  function parseTerm(){ let v = parsePow();
+    for(;;){ if (eat("*")) v *= parsePow(); else if (eat("/")) v /= parsePow();
+      else if (eat("%")) v %= parsePow(); else return v; } }
+  function parsePow(){ let b = parseUnary();
+    if (eat("^")) b = Math.pow(b, parsePow()); return b; }
+  function parseUnary(){ if (eat("+")) return parseUnary();
+    if (eat("-")) return -parseUnary(); return parsePrimary(); }
+  function parsePrimary(){
+    if (eat("(")){ const v = parseExpr();
+      if (!eat(")")) throw new Error("Parenthèse fermante manquante"); return v; }
+    const m = /^\d+(\.\d+)?/.exec(s.slice(i));
+    if (!m) throw new Error("Nombre attendu");
+    i += m[0].length;
+    return parseFloat(m[0]);
+  }
+  const r = parseExpr();
+  if (i !== s.length) throw new Error("Expression invalide");
+  if (typeof r !== "number" || !isFinite(r) || isNaN(r)) throw new Error("Résultat non fini");
+  return r;
+}
+
+/* Formate un nombre pour l'affichage français (sans bruit flottant). */
+function fmtNum(n){
+  const clean = Number.isInteger(n) ? n : parseFloat(n.toFixed(10));
+  return clean.toLocaleString("fr-FR", { maximumFractionDigits: 10 });
+}
+
+/* Interprète une commande de type « Minuteur 5 minutes ».
+   Retourne { ms, label } ou null si la durée est illisible. Durée plafonnée à 12 h. */
+function parseTimerSpec(lc){
+  const m = /^minuteur(?:\s+de)?\s+(\d+(?:[.,]\d+)?)\s*(h|heure?s?|hrs?|m|min(?:ute?s?)?|s|sec(?:onde?s?)?)?$/i.exec(lc);
+  if (!m) return null;
+  const val = parseFloat(m[1].replace(",", "."));
+  if (!isFinite(val) || val <= 0) return null;
+  const u = (m[2] || "min").toLowerCase();
+  let ms, label;
+  if (/^h/.test(u))      { ms = val * 3600000; label = val + " h"; }
+  else if (/^s/.test(u)) { ms = val * 1000;    label = val + " s"; }
+  else                   { ms = val * 60000;   label = val + " min"; }
+  if (ms < 1000) ms = 1000;
+  if (ms > 12 * 3600000){ ms = 12 * 3600000; label = "12 h (maximum)"; }
+  return { ms: Math.round(ms), label };
+}
+
+/* Formatage mm:ss / hh:mm:ss pour le compte à rebours. */
+function fmtClock(ms){
+  const t = Math.max(0, Math.ceil(ms / 1000));
+  const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), s = t % 60;
+  const p = n => String(n).padStart(2, "0");
+  return h > 0 ? `${p(h)}:${p(m)}:${p(s)}` : `${p(m)}:${p(s)}`;
+}
+/*__PURE_END__*/
+
+/* ==============================================================================
+   ÉTAT & PERSISTANCE LOCALE
+   ============================================================================== */
+const LS = {                      // clés localStorage (préfixe dédié à ZARVIS)
+  TASKS: "zrv_tasks", NOTES: "zrv_notes", PROFILE: "zrv_profile",
+  THEME: "zrv_theme", VOICE: "zrv_voice", TIMER: "zrv_timer", HIST: "zrv_history"
+};
+/* Accès défensif : localStorage/sessionStorage peuvent être bloqués (mode privé…). */
+const store = {
+  get(k, fb){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : fb; }catch(e){ return fb; } },
+  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} },
+  del(k){ try{ localStorage.removeItem(k); }catch(e){} }
+};
+const sess = {
+  get(k, fb){ try{ const v = sessionStorage.getItem(k); return v ? JSON.parse(v) : fb; }catch(e){ return fb; } },
+  set(k, v){ try{ sessionStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+};
+
+const state = {
+  tasks:   store.get(LS.TASKS, []),                 // {id, text, done, created}
+  notes:   store.get(LS.NOTES, []),                 // {id, text, created}
+  profile: store.get(LS.PROFILE, { name: null }),
+  voice:   store.get(LS.VOICE, true),               // synthèse vocale activée ?
+  timer:   store.get(LS.TIMER, null),               // { ends, label } | null
+  history: sess.get(LS.HIST, []),                   // historique de la session
+  bootAt:  Date.now(),
+  lastCmds: [],                                     // rappel clavier (flèche haut)
+  micOn:   false
+};
+
+const mqReduce = (window.matchMedia ? matchMedia("(prefers-reduced-motion: reduce)")
+                                     : { matches:false, addEventListener(){}, addListener(){} });
+const mqLight  = (window.matchMedia ? matchMedia("(prefers-color-scheme: light)")
+                                     : { matches:false, addEventListener(){}, addListener(){} });
+
+/* ==============================================================================
+   RÉFÉRENCES DOM & PETITES FABRIQUES
+   ============================================================================== */
+const $ = id => document.getElementById(id);
+const consoleEl = $("console"), inputEl = $("saisie");
+
+/* Fabrique d'éléments SÛRE : le texte est toujours passé via textContent
+   → aucune injection HTML possible, quoi que tape l'utilisateur. */
+function el(tag, cls, text){
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text != null) n.textContent = text;
+  return n;
+}
+function scrollConsole(){ consoleEl.scrollTop = consoleEl.scrollHeight; }
+function heureCourante(){ return new Date().toLocaleTimeString("fr-FR"); }
+function pick(arr){ return arr[Math.floor(Math.random() * arr.length)]; }
+
+/* ==============================================================================
+   SYNTHÈSE VOCALE (optionnelle) — le texte reste toujours fonctionnel
+   ============================================================================== */
+const ttsOK = typeof window.speechSynthesis !== "undefined" && typeof SpeechSynthesisUtterance !== "undefined";
+let frVoice = null;
+function refreshVoices(){
+  if (!ttsOK) return;
+  try{
+    const vs = speechSynthesis.getVoices();
+    frVoice = vs.find(v => /^fr/i.test(v.lang)) || vs.find(v => /fr/i.test(v.lang)) || null;
+  }catch(e){}
+}
+if (ttsOK){ refreshVoices(); try{ speechSynthesis.onvoiceschanged = refreshVoices; }catch(e){} }
+
+function speak(text){
+  if (!ttsOK || !state.voice || !text) return;
+  try{
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text.slice(0, 420));
+    u.lang = "fr-FR"; if (frVoice) u.voice = frVoice;
+    u.rate = 1.03; u.pitch = 1;
+    speechSynthesis.speak(u);
+  }catch(e){}
+}
+function stopSpeak(){ if (ttsOK){ try{ speechSynthesis.cancel(); }catch(e){} } }
+
+/* ==============================================================================
+   RECONNAISSANCE VOCALE (optionnelle, dépend du navigateur)
+   ============================================================================== */
+const SRClass = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+let rec = null;
+function initMicButton(){
+  const b = $("btnMic");
+  if (!SRClass){
+    b.disabled = true;
+    b.title = "Reconnaissance vocale non prise en charge par ce navigateur — la saisie texte reste 100 % fonctionnelle.";
+    b.setAttribute("aria-label", "Reconnaissance vocale indisponible dans ce navigateur");
+    return;
+  }
+  b.title = "Dictée vocale (peut utiliser un service réseau selon le navigateur)";
+  b.addEventListener("click", toggleMic);
+}
+function toggleMic(){
+  const b = $("btnMic");
+  if (state.micOn && rec){ try{ rec.stop(); }catch(e){} return; }
+  try{
+    rec = new SRClass();
+    rec.lang = "fr-FR"; rec.interimResults = false; rec.continuous = false;
+    state.micOn = true;
+    b.classList.add("recording"); b.setAttribute("aria-pressed", "true");
+    addMessage("sys", "🎙 Écoute en cours… parlez.", { store:false });
+    rec.onresult = ev => {
+      const t = ev.results && ev.results[0] && ev.results[0][0] ? ev.results[0][0].transcript : "";
+      if (t){ inputEl.value = t; processCommand(t); }
+    };
+    rec.onerror = ev => {
+      addMessage("sys", "Reconnaissance interrompue (" + (ev.error || "erreur inconnue") +
+        "). Le clavier reste disponible.", { store:false });
+    };
+    rec.onend = () => {
+      state.micOn = false;
+      b.classList.remove("recording"); b.setAttribute("aria-pressed", "false");
+    };
+    rec.start();
+  }catch(e){
+    state.micOn = false;
+    addMessage("sys", "Impossible de démarrer la reconnaissance vocale ici.", { store:false });
+  }
+}
+
+/* ==============================================================================
+   CONSOLE DE CONVERSATION
+   SÉCURITÉ : tout contenu utilisateur transite par textContent (jamais innerHTML).
+   Accessibilité : texte intégral dupliqué en .vhidden pour les lecteurs d'écran,
+   la zone visible (effet machine à écrire) est aria-hidden.
+   ============================================================================== */
+const AUTHOR = { user: "Vous", zarvis: "ZARVIS", sys: "Système" };
+
+function pushHistory(kind, text){
+  state.history.push({ k: kind, t: text, ts: Date.now() });
+  if (state.history.length > 100) state.history.shift();
+  sess.set(LS.HIST, state.history);
+}
+
+function buildMsg(kind, ts){
+  const item = el("article", "msg msg-" + kind);
+  const head = el("header", "msg-head");
+  head.append(el("span", "a", AUTHOR[kind] || kind));
+  const time = el("time", null, new Date(ts || Date.now()).toLocaleTimeString("fr-FR"));
+  time.dateTime = new Date(ts || Date.now()).toISOString();
+  head.append(time);
+  item.append(head);
+  const body = el("div", "msg-body");
+  item.append(body);
+  return { item, body };
+}
+
+/* Effet « machine à écrire » sur le nœud visuel (désactivé si mouvement réduit). */
+function typeInto(node, full){
+  if (mqReduce.matches || full.length > 700){ node.textContent = full; return; }
+  const slice = 220;                                  // vitesse d'apparition
+  const chars = [...full];
+  let i = 0;
+  const step = Math.max(1, Math.round(chars.length / (slice / 24)));
+  const it = setInterval(() => {
+    i = Math.min(chars.length, i + step);
+    node.textContent = chars.slice(0, i).join("");
+    scrollConsole();
+    if (i >= chars.length) clearInterval(it);
+  }, 24);
+}
+
+function addMessage(kind, text, opts){
+  const { speakText = null, store = true, ts = null, instant = false } = opts || {};
+  const { item, body } = buildMsg(kind, ts);
+  const sr = el("span", "vhidden", text); sr.setAttribute("aria-hidden", "false");
+  const vis = el("span", null, null); vis.setAttribute("aria-hidden", "true");
+  body.append(sr, vis);
+  consoleEl.append(item);
+  if (instant || mqReduce.matches) vis.textContent = text; else typeInto(vis, text);
+  scrollConsole();
+  if (kind === "zarvis" && speakText !== null) speak(speakText || text);
+  if (store) pushHistory(kind, text);
+  return body;
+}
+const say = (txt, o) => addMessage("zarvis", txt, o);
+
+/* Message enrichi : construit uniquement avec des nœuds DOM sûrs. */
+function addRichMessage(kind, buildFn, opts){
+  const { speakText = null, summary = "", store = true, ts = null } = opts || {};
+  const { item, body } = buildMsg(kind, ts);
+  const sr = el("span", "vhidden", summary || "(message détaillé)");
+  body.append(sr);
+  const vis = el("div", null, null); vis.setAttribute("aria-hidden", "true");
+  body.append(vis);
+  buildFn(vis);
+  consoleEl.append(item);
+  scrollConsole();
+  if (kind === "zarvis" && speakText !== null) speak(speakText || summary);
+  if (store) pushHistory(kind, summary || "(message détaillé)");
+  return vis;
+}
+
+/* ==============================================================================
+   THÈME SOMBRE / CLAIR
+   ============================================================================== */
+function applyTheme(theme, announce){
+  document.documentElement.dataset.theme = theme;
+  store.set(LS.THEME, theme);
+  const dark = theme === "dark";
+  $("btnTheme").textContent = dark ? "☾" : "☀";
+  $("btnTheme").setAttribute("aria-label",
+    dark ? "Thème actuel : sombre. Activer le thème clair." : "Thème actuel : clair. Activer le thème sombre.");
+  refreshPalette();
+  if (announce) say(dark ? "Mode sombre activé. Interface calibrée pour la pénombre, opérateur."
+                         : "Mode clair activé. Luminosité maximale, lisibilité optimale.", { speakText: null });
+  state.currentTheme = theme;
+}
+function initTheme(){
+  const saved = store.get(LS.THEME, null);
+  applyTheme(saved || (mqLight.matches ? "light" : "dark"), false);
+}
+
+/* ==============================================================================
+   MODULES : navigation, badges, bascule des vues
+   ============================================================================== */
+const MODULES = [
+  { id: "tasks",     lbl: "Tâches",     ico: "◈", sub: "Gestion locale" },
+  { id: "notes",     lbl: "Notes",      ico: "◉", sub: "Bloc-notes" },
+  { id: "protocols", lbl: "Protocoles", ico: "⬢", sub: "Commandes vocales & texte" },
+  { id: "system",    lbl: "Système",    ico: "◎", sub: "Diagnostic & télémétrie" },
+  { id: "profile",   lbl: "Profil",     ico: "◬", sub: "Opérateur & données" }
+];
+let activeModule = "tasks";
+
+function buildModuleNav(){
+  const side = $("sideModules"), tabs = $("tabs"), bottom = $("bottombar");
+  MODULES.forEach(m => {
+    // Sidebar (desktop)
+    const b = el("button", "modbtn"); b.type = "button"; b.dataset.mod = m.id;
+    const i1 = el("span", "ico", m.ico); i1.setAttribute("aria-hidden", "true");
+    const lb = el("span", "lbl"); lb.append(el("b", null, m.lbl), el("small", null, m.sub));
+    const bd = el("span", "badge"); bd.id = "badge-" + m.id; bd.hidden = true;
+    b.append(i1, lb, bd);
+    b.addEventListener("click", () => selectModule(m.id, true));
+    side.append(b);
+    // Onglets du panneau
+    const t = el("button", null, m.lbl); t.type = "button";
+    t.id = "tab-" + m.id; t.setAttribute("role", "tab");
+    t.setAttribute("aria-controls", "view-" + m.id);
+    t.addEventListener("click", () => selectModule(m.id, true));
+    tabs.append(t);
+    // Barre inférieure (mobile)
+    const bb = el("button"); bb.type = "button"; bb.dataset.mod = m.id;
+    const i2 = el("span", "ico", m.ico); i2.setAttribute("aria-hidden", "true");
+    bb.append(i2, el("span", null, m.lbl));
+    bb.addEventListener("click", () => selectModule(m.id, true));
+    bottom.append(bb);
+  });
+}
+
+function isDesktopDeck(){ return window.innerWidth >= 1280; }
+
+function selectModule(id, openDrawer){
+  if (!MODULES.some(m => m.id === id)) return;
+  activeModule = id;
+  document.querySelectorAll(".modbtn, .bottombar button").forEach(b =>
+    b.setAttribute("aria-current", String(b.dataset.mod === id)));
+  document.querySelectorAll('.tabs [role="tab"]').forEach(t =>
+    t.setAttribute("aria-selected", String(t.id === "tab-" + id)));
+  MODULES.forEach(m => { $("view-" + m.id).hidden = (m.id !== id); });
+  if (openDrawer && !isDesktopDeck()) openDeck(true);
+  refreshBadges();
+}
+
+function openDeck(open){
+  const deck = $("deck"), scrim = $("scrim"), btn = $("btnPanel");
+  deck.classList.toggle("open", open);
+  scrim.classList.toggle("show", open && !isDesktopDeck());
+  btn.setAttribute("aria-expanded", String(open));
+  if ("inert" in deck) deck.inert = !open && !isDesktopDeck();
+  if (open) $("deckClose").focus({ preventScroll: true });
+}
+addEventListener("resize", () => { if (isDesktopDeck()) openDeck(true); });
+
+/* ==============================================================================
+   TÂCHES — ajout, affichage, validation, suppression (localStorage)
+   ============================================================================== */
+function saveTasks(){ store.set(LS.TASKS, state.tasks); refreshBadges(); }
+function pendingTasks(){ return state.tasks.filter(t => !t.done).length; }
+
+function renderTasks(){
+  const box = $("taskList"); box.textContent = "";
+  if (!state.tasks.length){
+    const e = el("p", "empty", "Aucune tâche enregistrée.");
+    e.append(el("br"), el("span", null, "Dites : « Ajoute une tâche … » ou utilisez le champ ci-dessous."));
+    box.append(e); return;
+  }
+  state.tasks.forEach((t, idx) => {
+    const row = el("div", "item" + (t.done ? " done" : ""));
+    const chk = el("button", "minibtn", t.done ? "✓" : "○");
+    chk.type = "button";
+    chk.setAttribute("aria-label", (t.done ? "Tâche terminée : " : "Terminer la tâche : ") + t.text);
+    chk.addEventListener("click", () => completeTask(idx + 1, false));
+    const tx = el("span", "txt", t.text);
+    tx.append(el("small", null, "n°" + (idx + 1) + " · " + new Date(t.created).toLocaleDateString("fr-FR")));
+    const del = el("button", "minibtn del", "✕"); del.type = "button";
+    del.setAttribute("aria-label", "Supprimer la tâche : " + t.text);
+    del.addEventListener("click", () => {
+      state.tasks.splice(idx, 1); saveTasks(); renderTasks(); renderCounters();
+      addMessage("sys", "Tâche n°" + (idx + 1) + " supprimée.", { store:false });
+    });
+    row.append(chk, tx, del);
+    box.append(row);
+  });
+}
+function addTask(text){
+  const t = { id: Date.now() + "-" + Math.random().toString(36).slice(2, 7),
+              text, done: false, created: Date.now() };
+  state.tasks.push(t); saveTasks(); renderTasks(); renderCounters();
+  const n = state.tasks.length;
+  say("Tâche enregistrée : « " + text + " » (n°" + n + "). " +
+      pendingTasks() + " tâche(s) en cours.", { speakText: "Tâche enregistrée." });
+}
+function listTasks(){
+  if (!state.tasks.length){
+    say("Aucune tâche enregistrée pour l'instant. Ajoutez-en une : « Ajoute une tâche préparer le dossier ».");
+    return;
+  }
+  addRichMessage("zarvis", c => {
+    c.append(el("p", null, pendingTasks() + " en cours · " + state.tasks.length + " au total :"));
+    const ol = el("ol");
+    state.tasks.forEach(t => {
+      const li = el("li", t.done ? "done" : null, t.text + (t.done ? " — terminée" : ""));
+      ol.append(li);
+    });
+    c.append(ol);
+    c.append(el("p", null, "Validez avec « Termine la tâche N »."));
+  }, { summary: "Liste de " + state.tasks.length + " tâche(s), dont " + pendingTasks() + " en cours.",
+       speakText: "Vous avez " + pendingTasks() + " tâche(s) en cours." });
+}
+function completeTask(n, announce){
+  const t = state.tasks[n - 1];
+  if (!t){ if (announce !== false) say("Je ne trouve pas la tâche n°" + n +
+    ". Tapez « Mes tâches » pour voir la liste."); return; }
+  if (t.done){ if (announce !== false) say("La tâche n°" + n + " est déjà terminée."); return; }
+  t.done = true; saveTasks(); renderTasks(); renderCounters();
+  if (announce !== false)
+    say("Tâche n°" + n + " terminée : « " + t.text + " ». Bien joué" +
+        (state.profile.name ? ", " + state.profile.name : "") + ".",
+        { speakText: "Tâche terminée. Bien joué." });
+  else addMessage("sys", "Tâche n°" + n + " terminée.", { store:false });
+}
+
+/* ==============================================================================
+   NOTES — ajout, affichage, suppression (localStorage)
+   ============================================================================== */
+function saveNotes(){ store.set(LS.NOTES, state.notes); refreshBadges(); }
+
+function renderNotes(){
+  const box = $("noteList"); box.textContent = "";
+  if (!state.notes.length){
+    const e = el("p", "empty", "Aucune note enregistrée.");
+    e.append(el("br"), el("span", null, "Dites : « Note : appeler maman » ou utilisez le champ ci-dessous."));
+    box.append(e); return;
+  }
+  state.notes.forEach((n, idx) => {
+    const row = el("div", "item");
+    const tx = el("span", "txt", n.text);
+    tx.append(el("small", null, "n°" + (idx + 1) + " · " +
+      new Date(n.created).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })));
+    const del = el("button", "minibtn del", "✕"); del.type = "button";
+    del.setAttribute("aria-label", "Supprimer la note : " + n.text);
+    del.addEventListener("click", () => {
+      state.notes.splice(idx, 1); saveNotes(); renderNotes(); renderCounters();
+      addMessage("sys", "Note n°" + (idx + 1) + " supprimée.", { store:false });
+    });
+    row.append(tx, del);
+    box.append(row);
+  });
+}
+function addNote(text){
+  state.notes.push({ id: Date.now() + "-" + Math.random().toString(36).slice(2, 7),
+                     text, created: Date.now() });
+  saveNotes(); renderNotes(); renderCounters();
+  say("Note enregistrée : « " + text + " ». (" + state.notes.length + " note(s) au total)",
+      { speakText: "Note enregistrée." });
+}
+function listNotes(){
+  if (!state.notes.length){
+    say("Aucune note pour l'instant. Dites : « Note : appeler maman ».");
+    return;
+  }
+  addRichMessage("zarvis", c => {
+    c.append(el("p", null, state.notes.length + " note(s) en mémoire locale :"));
+    const ol = el("ol");
+    state.notes.forEach(n => ol.append(el("li", null, n.text)));
+    c.append(ol);
+  }, { summary: "Liste de " + state.notes.length + " note(s).",
+       speakText: state.notes.length + " note(s) affichée(s)." });
+}
+
+/* ==============================================================================
+   MINUTEUR — compte à rebours visible, persistant pendant la session navigateur
+   ============================================================================== */
+let timerChipTimer = null;
+function setTimer(ms, label){
+  state.timer = { ends: Date.now() + ms, label };
+  store.set(LS.TIMER, state.timer);
+  updateTimerUI();
+  say("Minuteur lancé : " + label + ". Je vous préviendrai à l'échéance.",
+      { speakText: "Minuteur lancé pour " + label + "." });
+}
+function cancelTimer(fromUI){
+  if (!state.timer){
+    if (!fromUI) say("Aucun minuteur en cours.");
+    return;
+  }
+  state.timer = null; store.del(LS.TIMER);
+  updateTimerUI();
+  if (!fromUI) say("Minuteur annulé. Le temps vous appartient à nouveau.");
+  else addMessage("sys", "Minuteur annulé via l'interface.", { store:false });
+}
+function updateTimerUI(){
+  const chip = $("chipTimer"), foot = $("ftTimer");
+  if (!state.timer){
+    chip.hidden = true; foot.textContent = "--:--";
+    if (timerChipTimer){ clearInterval(timerChipTimer); timerChipTimer = null; }
+    return;
+  }
+  const tick = () => {
+    const left = state.timer ? state.timer.ends - Date.now() : 0;
+    if (!state.timer || left <= 0){ onTimerEnd(); return; }
+    const txt = fmtClock(left);
+    chip.textContent = "";
+    chip.append(el("span", null, "⏱"), el("strong", null, txt), document.createTextNode(" ✕"));
+    foot.textContent = txt;
+    chip.setAttribute("aria-label", "Minuteur en cours : " + txt + " restantes. Activer pour annuler.");
+  };
+  tick();
+  if (timerChipTimer) clearInterval(timerChipTimer);
+  timerChipTimer = setInterval(tick, 500);
+}
+function onTimerEnd(){
+  const label = state.timer ? state.timer.label : "";
+  state.timer = null; store.del(LS.TIMER);
+  updateTimerUI();
+  beep();
+  addMessage("zarvis", "⏱ MINUTEUR TERMINÉ — " + label +
+    " écoulées. Pensez à la suite, opérateur.", { speakText: "Minuteur terminé." });
+  setCoreState("État : alerte"); setTimeout(() => setCoreState("État : veille"), 4000);
+}
+/* Petit bip généré par WebAudio (aucune ressource externe). */
+let audioCtx = null;
+function beep(){
+  try{
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    audioCtx = audioCtx || new AC();
+    if (audioCtx.state === "suspended") audioCtx.resume();
+    const now = audioCtx.currentTime;
+    [880, 660, 880].forEach((f, i) => {
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.type = "sine"; o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, now + i * 0.22);
+      g.gain.exponentialRampToValueAtTime(0.18, now + i * 0.22 + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.22 + 0.2);
+      o.connect(g).connect(audioCtx.destination);
+      o.start(now + i * 0.22); o.stop(now + i * 0.22 + 0.22);
+    });
+  }catch(e){}
+}
+
+/* ==============================================================================
+   STATISTIQUES & COMPTEURS
+   ============================================================================== */
+function refreshBadges(){
+  const bt = $("badge-tasks"), bn = $("badge-notes");
+  const p = pendingTasks();
+  bt.hidden = !p; bt.textContent = p;
+  bn.hidden = !state.notes.length; bn.textContent = state.notes.length;
+  document.querySelectorAll('.bottombar button[data-mod="tasks"] .ico')
+    .forEach(i => i.textContent = p ? "◈" : "◇");
+}
+function storageBytes(){
+  let sum = 0;
+  Object.values(LS).forEach(k => { try{
+    const v = localStorage.getItem(k); if (v) sum += v.length * 2;
+  }catch(e){} });
+  return sum;
+}
+function renderCounters(){
+  $("ftTasks").textContent = pendingTasks();
+  $("ftNotes").textContent = state.notes.length;
+  refreshBadges();
+  // Chip opérateur
+  const chip = $("chipOperator");
+  if (state.profile.name){
+    chip.hidden = false;
+    $("chipOperatorName").textContent = state.profile.name;
+  } else chip.hidden = true;
+  // Profil (vue)
+  $("profName").textContent = state.profile.name || "—";
+  $("profVoice").textContent = ttsOK ? (state.voice ? "Activée" : "Coupée") : "Indisponible";
+  renderStats();
+}
+function renderStats(){
+  const grid = $("statGrid");
+  const mem = (window.performance && performance.memory)
+    ? Math.round(performance.memory.usedJSHeapSize / 1048576) + " / " +
+      Math.round(performance.memory.jsHeapSizeLimit / 1048576) + " Mo" : "N/D";
+  const rows = [
+    ["Uptime", fmtClock(Date.now() - state.bootAt)],
+    ["Tâches en cours", pendingTasks()],
+    ["Notes", state.notes.length],
+    ["Stockage local", storageBytes() < 1024 ? storageBytes() + " o"
+                                             : (storageBytes() / 1024).toFixed(1) + " Ko"],
+    ["Mémoire JS", mem],
+    ["Réseau requis", "Aucun"]
+  ];
+  grid.textContent = "";
+  rows.forEach(([k, v]) => {
+    const s = el("div", "stat");
+    s.append(el("div", "k", k), el("div", "v", String(v)));
+    grid.append(s);
+  });
+  // Table des capacités détectées
+  const feat = $("featTable"); feat.textContent = "";
+  const caps = [
+    ["Synthèse vocale", ttsOK ? "Disponible" : "Non prise en charge", ttsOK],
+    ["Reconnaissance vocale", SRClass ? "Disponible (navigateur)" : "Non prise en charge", !!SRClass],
+    ["Stockage local", "Actif (localStorage)", true],
+    ["Minuteur", state.timer ? "Actif — " + fmtClock(state.timer.ends - Date.now()) : "Au repos", !!state.timer],
+    ["Thème", document.documentElement.dataset.theme === "dark" ? "Sombre" : "Clair", true],
+    ["Mouvement réduit", mqReduce.matches ? "Demandé · respecté" : "Non demandé", true]
+  ];
+  caps.forEach(([k, v, ok]) => {
+    const tr = el("tr");
+    const td = el("td", null, v);
+    td.className = ok ? "ok" : "ko";
+    tr.append(el("td", null, k), td);
+    feat.append(tr);
+  });
+}
+/* Batterie (API optionnelle, aucune permission réseau) */
+let batteryLevel = null;
+if (navigator.getBattery){
+  try{
+    navigator.getBattery().then(b => {
+      batteryLevel = b.level;
+      const tr = el("tr");
+      tr.append(el("td", null, "Batterie"),
+                el("td", "ok", Math.round(b.level * 100) + " %" + (b.charging ? " · charge" : "")));
+      $("featTable").append(tr);
+      b.addEventListener("levelchange", () => { batteryLevel = b.level; renderStats(); });
+      b.addEventListener("chargingchange", renderStats);
+    }).catch(() => {});
+  }catch(e){}
+}
+
+/* Horloge + uptime (tic maître, 1 s) */
+setInterval(() => {
+  $("chipClock").textContent = heureCourante();
+  $("ftUptime").textContent = fmtClock(Date.now() - state.bootAt);
+  if (activeModule === "system" && !document.hidden) renderStats();
+}, 1000);
+
+/* ==============================================================================
+   SCAN SYSTÈME — diagnostic visuel progressif
+   ============================================================================== */
+function runScan(){
+  setCoreState("État : scan");
+  const lines = [
+    "◆ SCAN SYSTÈME EN COURS…",
+    ["Noyau local", "OK", true],
+    ["Stockage local (" + storageBytes() + " o)", "OK", true],
+    ["Modules : tâches · notes · minuteur · calculatrice", "OK", true],
+    ["Synthèse vocale", ttsOK ? "OK" : "NON DISPONIBLE", ttsOK],
+    ["Reconnaissance vocale", SRClass ? "OK (navigateur)" : "NON PRISE EN CHARGE", !!SRClass],
+    ["Batterie", batteryLevel != null ? Math.round(batteryLevel * 100) + " %" : "N/D", true],
+    ["Réseau", "NON REQUIS — hors-ligne opérationnel", true],
+    "◆ DIAGNOSTIC : système nominal. ZARVIS prêt."
+  ];
+  const box = addRichMessage("sys", () => {}, { store:false, summary: "Scan système" });
+  const pre = el("div", "sysscan");
+  box.append(pre);
+  const delays = mqReduce.matches ? 0 : 260;
+  lines.forEach((L, idx) => {
+    setTimeout(() => {
+      if (typeof L === "string") pre.append(el("div", "ln", L));
+      else{
+        const d = el("div", "ln");
+        d.append(el("span", null, "▸ " + L[0] + " …… "),
+                 el("span", L[2] ? "ok" : "ko", L[1]));
+        pre.append(d);
+      }
+      scrollConsole();
+      if (idx === lines.length - 1){
+        say("Diagnostic terminé : tous les modules critiques sont opérationnels, " +
+            "et aucun réseau n'est requis.", { speakText: "Scan terminé. Système nominal." });
+        setCoreState("État : veille");
+      }
+    }, delays * idx);
+  });
+}
+
+/* ==============================================================================
+   IDÉES — générateur local d'idées (aucune IA distante)
+   ============================================================================== */
+const IDEAS = [
+  "Créer une application mobile de budget pensée pour les paiements Mobile Money.",
+  "Lancer une newsletter hebdomadaire qui vulgarise l'IA pour les PME africaines.",
+  "Construire un générateur de devis WhatsApp pour artisans et freelances.",
+  "Écrire un guide « Freelance en Afrique francophone » en 30 jours.",
+  "Prototyper un mini-CRM hors-ligne pour commerçants de quartier.",
+  "Créer un tableau de bord personnel qui suit vos 3 objectifs du trimestre.",
+  "Automatiser vos relances clients avec des messages WhatsApp pré-écrits.",
+  "Apprendre une nouvelle technologie en construisant un clone minimal d'une app connue.",
+  "Lancer un service d'abonnement pour les factures récurrentes des TPE.",
+  "Organiser un atelier gratuit de numérique pour les entrepreneurs de votre ville.",
+  "Créer une bibliothèque de modèles de documents professionnels en FCFA.",
+  "Tenir un journal de bord quotidien de 5 lignes pour mesurer votre progression.",
+  "Transformer votre meilleure réponse client en article de blog ou en script vidéo.",
+  "Construire un outil qui convertit vos notes vocales en tâches planifiées.",
+  "Mettre en place une revue hebdomadaire : 30 minutes chaque vendredi, sans excès.",
+  "Digitaliser la prise de commande d'un restaurant local avec un formulaire simple."
+];
+
+/* ==============================================================================
+   AIDE & PROTOCOLES
+   ============================================================================== */
+const PROTOCOLS = [
+  ["Essentiel", ["Aide", "Qui es-tu ?", "Je m'appelle …", "Quel est mon nom ?"]],
+  ["Temps", ["Quelle heure est-il ?", "Quelle est la date ?"]],
+  ["Tâches", ["Ajoute une tâche préparer le dossier", "Mes tâches", "Termine la tâche 1"]],
+  ["Notes", ["Note : appeler maman", "Mes notes"]],
+  ["Outils", ["Calcule 12 × 4", "Minuteur 5 minutes", "Annule le minuteur", "Donne-moi une idée"]],
+  ["Système", ["Scanne le système", "Mode sombre", "Mode clair", "Silence", "Active la voix"]],
+  ["Modules", ["Ouvre les tâches", "Ouvre les notes", "Ouvre les protocoles"]]
+];
+function renderProtocols(){
+  const box = $("protoList"); box.textContent = "";
+  PROTOCOLS.forEach(([group, cmds]) => {
+    const g = el("div", "proto-group");
+    g.append(el("h4", null, group));
+    const list = el("div", "proto-list");
+    cmds.forEach(cmd => {
+      const b = el("button", null, cmd);
+      b.type = "button";
+      b.setAttribute("aria-label", "Charger la commande : " + cmd);
+      b.addEventListener("click", () => {
+        inputEl.value = cmd;
+        inputEl.focus();
+        if (window.innerWidth < 1280) openDeck(false);
+      });
+      list.append(b);
+    });
+    g.append(list);
+    box.append(g);
+  });
+}
+function cmdAide(){
+  addRichMessage("zarvis", c => {
+    c.append(el("p", null, "Voici mes protocoles principaux, opérateur :"));
+    const ul = el("ul");
+    [
+      "Profil — « Je m'appelle … » · « Quel est mon nom ? »",
+      "Temps — « Quelle heure est-il ? » · « Quelle est la date ? »",
+      "Tâches — « Ajoute une tâche … » · « Mes tâches » · « Termine la tâche 1 »",
+      "Notes — « Note : … » · « Mes notes »",
+      "Outils — « Calcule 12 × 4 » · « Minuteur 5 minutes » · « Annule le minuteur »",
+      "Modules — « Ouvre les tâches / notes / protocoles »",
+      "Système — « Scanne le système » · « Mode sombre » · « Mode clair »",
+      "Voix — « Active la voix » · « Silence »"
+    ].forEach(t => ul.append(el("li", null, t)));
+    c.append(ul);
+    c.append(el("p", null, "Astuce : « Donne-moi une idée ». Le panneau Protocoles liste tout."));
+    c.append(el("p", null,
+      "Rappel : commandes texte 100 % hors-ligne ; la reconnaissance vocale dépend du navigateur."));
+  }, { summary: "Aide : liste des commandes disponibles.",
+       speakText: "Voici mes protocoles principaux. Le panneau protocoles liste toutes les commandes." });
+}
+
+/* ==============================================================================
+   VOIX — activation / silence
+   ============================================================================== */
+function updateVoiceUI(){
+  const b = $("btnVoice");
+  b.setAttribute("aria-pressed", String(state.voice));
+  b.textContent = state.voice ? "🔊" : "🔇";
+  b.setAttribute("aria-label", "Synthèse vocale : " + (state.voice ? "activée" : "coupée"));
+}
+function setVoice(on, viaCmd){
+  state.voice = on; store.set(LS.VOICE, on);
+  updateVoiceUI(); renderCounters();
+  if (!on) stopSpeak();
+  if (viaCmd)
+    say(on ? (ttsOK ? "Voix activée. Je parle à nouveau, opérateur."
+                    : "La synthèse vocale n'est pas prise en charge par ce navigateur — je reste joignable par écrit.")
+           : "Voix désactivée. Silence total.");
+}
+
+/* ==============================================================================
+   ROUTEUR DE COMMANDES — point d'entrée unique, matches sur texte normalisé.
+   Les extraits (nom, tâche, note) proviennent de la chaîne « light » qui conserve
+   casse et accents ; l'affichage échappe tout via textContent.
+   ============================================================================== */
+function processCommand(raw){
+  const lc = light(raw);
+  if (!lc) return;
+  addMessage("user", lc, { store:true });
+
+  // Rappel de commande (flèche haut)
+  state.lastCmds.push(lc);
+  if (state.lastCmds.length > 30) state.lastCmds.shift();
+  cmdIndex = state.lastCmds.length;
+
+  let m;
+  /* --- Aide --- */
+  if (/^aide$/i.test(lc)) return cmdAide();
+  /* --- Salutations --- */
+  if (/^(salut|bonjour|bonsoir|coucou|hello|hey)$/i.test(lc))
+    return say("Bonjour" + (state.profile.name ? ", " + state.profile.name : "") +
+      ". Systèmes nominaux, 100 % hors-ligne. Une commande ?");
+  /* --- Identité --- */
+  if (/^qui es[-\s]tu$/i.test(lc) || /^tu es qui$/i.test(lc) || /^pr[eé]sente[-\s]toi$/i.test(lc))
+    return say("Je suis ZARVIS — Zone Autonome de Réponse Vocale et d'Interface Système — " +
+      "votre assistant personnel autonome, inspiré des interfaces de science-fiction. " +
+      "Je fonctionne entièrement sur cet appareil : aucun serveur, aucun cloud, " +
+      "aucune donnée envoyée. Tapez « Aide » pour découvrir mes protocoles.");
+  /* --- Définir le nom --- */
+  if ((m = /^je m['’]appelle\s+(.{1,60})$/i.exec(lc)) || (m = /^mon nom est\s+(.{1,60})$/i.exec(lc))){
+    const name = m[1].replace(/[!.]+$/g, "").trim();
+    if (!name) return say("Je n'ai pas saisi votre nom. Dites : « Je m'appelle … ».");
+    state.profile.name = name;
+    store.set(LS.PROFILE, state.profile); renderCounters();
+    return say("Enchanté, " + name + ". Nom d'opérateur enregistré dans la mémoire locale.",
+      { speakText: "Enchanté, " + name + "." });
+  }
+  /* --- Rappeler le nom --- */
+  if (/^quel est mon nom$/i.test(lc) || /^comment je m['’]appelle$/i.test(lc))
+    return say(state.profile.name
+      ? "Vous êtes " + state.profile.name + ", opérateur enregistré de ce terminal."
+      : "Je ne connais pas encore votre nom. Dites-moi : « Je m'appelle … ».");
+  /* --- Heure & date --- */
+  if (/^quelle heure est[-\s]il$/i.test(lc) || /^il est quelle heure$/i.test(lc) || /^l['’]heure$/i.test(lc))
+    return say("Il est " + new Date().toLocaleTimeString("fr-FR") + ". Précision locale, aucune requête réseau.");
+  if (/^quelle est la date$/i.test(lc) || /^on est (le )?quel jour$/i.test(lc) || /^la date$/i.test(lc)){
+    const d = new Date().toLocaleDateString("fr-FR",
+      { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+    return say("Nous sommes le " + d + ".");
+  }
+  /* --- Scan système --- */
+  if (/^scann?e?\s+(le\s+)?syst[eè]me$/i.test(lc) || /^diagnostic(\s+(syst[eè]me|complet))?$/i.test(lc))
+    return runScan();
+  /* --- Thème --- */
+  if (/^(mode|th[eè]me)\s+sombre$/i.test(lc)) return applyTheme("dark", true);
+  if (/^(mode|th[eè]me)\s+clair$/i.test(lc))  return applyTheme("light", true);
+  if (/^bascule(r)?\s+(le\s+)?th[eè]me$/i.test(lc))
+    return applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark", true);
+  /* --- Calculatrice sécurisée --- */
+  if ((m = /^(?:calcule(?:\s+moi)?|calcul(?:e)?(?:\s+moi)?|combien\s+(?:font|fait))\s*[:\-]?\s*(.+)$/i.exec(lc))){
+    try{
+      const r = calculate(m[1]);
+      return say(m[1] + " = " + fmtNum(r), { speakText: m[1] + " égale " + fmtNum(r) });
+    }catch(e){
+      return say("Expression illisible. Exemples valides : « Calcule 12 × 4 », « Calcule (2 + 3) × 4 », « Calcule 10 / 4 ».");
+    }
+  }
+  /* --- Minuteur --- */
+  if (/^annule[r]?\s+(le\s+)?(minuteur|compte\s+[aà]\s+rebours)$/i.test(lc)) return cancelTimer(false);
+  if (/^minuteur\b/i.test(lc)){
+    const spec = parseTimerSpec(lc);
+    if (!spec) return say("Précisez la durée : « Minuteur 5 minutes », « Minuteur 30 secondes » ou « Minuteur 1 heure ».");
+    return setTimer(spec.ms, spec.label);
+  }
+  /* --- Tâches --- */
+  if ((m = /^ajoute\s+(?:une\s+)?t[aâ]che\s+(.{1,140})$/i.exec(lc)) ||
+      (m = /^nouvelle\s+t[aâ]che\s+(.{1,140})$/i.exec(lc)))
+    return addTask(m[1].trim());
+  if (/^mes\s+t[aâ]ches$/i.test(lc) || /^(liste|affiche|montre)\s+(mes\s+)?t[aâ]ches$/i.test(lc))
+    return listTasks();
+  if ((m = /^(?:termin\w*|valid\w*|achev\w*|coch\w*)\s+(?:la\s+)?t[aâ]che\s+(\d+)$/i.exec(lc)))
+    return completeTask(parseInt(m[1], 10), true);
+  /* --- Notes --- */
+  if ((m = /^prends?\s+note\s*[:;\-–—]?\s*(.{1,200})$/i.exec(lc)) ||
+      (m = /^note\s*[:;\-–—]\s*(.{1,200})$/i.exec(lc)) ||
+      (m = /^note\s+(.{2,200})$/i.exec(lc)))
+    return addNote(m[1].trim());
+  if (/^mes\s+notes$/i.test(lc) || /^(liste|affiche|montre)\s+(mes\s+)?notes$/i.test(lc))
+    return listNotes();
+  /* --- Ouverture des modules --- */
+  if ((m = /^ouvre?\s+(?:l[ae]s?\s+)?(t[aâ]ches|notes|protocoles?|syst[eè]me|profil|panneau)$/i.exec(lc))){
+    const key = m[1].toLowerCase();
+    const map = { "tâche": "tasks", "tache": "tasks", "tâches": "tasks", "taches": "tasks",
+                  "note": "notes", "notes": "notes",
+                  "protocole": "protocols", "protocoles": "protocols",
+                  "système": "system", "systeme": "system", "panneau": "system",
+                  "profil": "profile" };
+    const id = map[key] || "system";
+    selectModule(id, true);
+    const lbl = MODULES.find(x => x.id === id).lbl;
+    return say("Module " + lbl + " ouvert dans le panneau de données.", { speakText: "Module " + lbl + " ouvert." });
+  }
+  /* --- Idée --- */
+  if (/^(?:donne(?:[-\s]moi)?\s+une\s+)?id[eé]e$/i.test(lc))
+    return say("Idée du moment : " + pick(IDEAS), { speakText: "Voici une idée." });
+  /* --- Voix --- */
+  if (/^silence$/i.test(lc) || /^tais[-\s]toi$/i.test(lc)){
+    stopSpeak(); setVoice(false, false);
+    return say("Silence. Je reste entièrement disponible par écrit — tapez « Active la voix » pour me réveiller.",
+      { speakText: null });
+  }
+  if (/^active\s+(?:la\s+)?voix$/i.test(lc)) return setVoice(true, true);
+  if (/^d[eé]sactive\s+(?:la\s+)?voix$/i.test(lc)) return setVoice(false, true);
+  /* --- Console --- */
+  if (/^(efface|nettoie|vide)\s+(la\s+)?console$/i.test(lc) || /^clear$/i.test(lc)){
+    consoleEl.textContent = ""; state.history = []; sess.set(LS.HIST, []);
+    return addMessage("sys", "Console effacée. Mémoire de session réinitialisée.", { store:false });
+  }
+  /* --- Politesse --- */
+  if (/^merci/i.test(lc)) return say("Avec plaisir" + (state.profile.name ? ", " + state.profile.name : "") + ".");
+  /* --- Commande inconnue --- */
+  return addRichMessage("zarvis", c => {
+    c.append(el("span", null, "Je n'ai pas de protocole pour « "));
+    c.append(el("b", null, lc));
+    c.append(el("span", null, " ». Tapez « Aide » pour la liste complète des commandes."));
+  }, { summary: "Commande non reconnue : " + lc, speakText: "Commande non reconnue. Tapez aide." });
+}
+
+/* ==============================================================================
+   FORMULAIRE, RACCOURCIS CLAVIER, RAPPEL DE COMMANDE
+   ============================================================================== */
+let cmdIndex = 0;
+$("cmdform").addEventListener("submit", e => {
+  e.preventDefault();
+  const v = inputEl.value;
+  inputEl.value = "";
+  processCommand(v);
+  inputEl.focus();
+});
+inputEl.addEventListener("keydown", e => {
+  if (e.key === "ArrowUp"){
+    e.preventDefault();
+    if (cmdIndex > 0) inputEl.value = state.lastCmds[--cmdIndex] || "";
+  } else if (e.key === "ArrowDown"){
+    e.preventDefault();
+    if (cmdIndex < state.lastCmds.length) inputEl.value = state.lastCmds[++cmdIndex] || "";
+  }
+});
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") openDeck(false);                        // fermer le tiroir
+  if (e.ctrlKey && (e.key === "k" || e.key === "K")){             // Ctrl+K : focus console
+    e.preventDefault(); inputEl.focus();
+  }
+  if (e.key === "/" && document.activeElement !== inputEl &&
+      !/^(INPUT|TEXTAREA|BUTTON)$/.test(document.activeElement.tagName)){
+    e.preventDefault(); inputEl.focus();
+  }
+});
+
+/* Bouton minuteur du bandeau : un clic annule */
+$("chipTimer").addEventListener("click", () => cancelTimer(true));
+/* Thème & voix */
+$("btnTheme").addEventListener("click", () =>
+  applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark", true));
+$("btnVoice").addEventListener("click", () => setVoice(!state.voice, true));
+/* Panneau mobile */
+$("btnPanel").addEventListener("click", () => openDeck(!$("deck").classList.contains("open")));
+$("deckClose").addEventListener("click", () => openDeck(false));
+$("scrim").addEventListener("click", () => openDeck(false));
+/* Scan via l'interface */
+$("scanBtn").addEventListener("click", () => { renderStats(); runScan(); });
+
+/* Formulaires des panneaux (partagent la logique des commandes) */
+$("taskForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const v = light($("taskInput").value);
+  if (v){ addTask(v); $("taskInput").value = ""; }
+});
+$("noteForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const v = light($("noteInput").value);
+  if (v){ addNote(v); $("noteInput").value = ""; }
+});
+$("profForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const v = light($("profInput").value);
+  if (v){ processCommand("Je m'appelle " + v); $("profInput").value = ""; }
+});
+
+/* Export JSON (Blob local, aucun réseau) et réinitialisation */
+$("btnExport").addEventListener("click", () => {
+  try{
+    const data = {
+      app: "ZARVIS", exporteLe: new Date().toISOString(),
+      profil: state.profile,
+      preferences: { theme: document.documentElement.dataset.theme, voix: state.voice },
+      taches: state.tasks, notes: state.notes
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "zarvis-sauvegarde.json";
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    addMessage("sys", "Sauvegarde JSON générée localement.", { store:false });
+  }catch(e){ addMessage("sys", "Export impossible dans ce contexte.", { store:false }); }
+});
+$("btnReset").addEventListener("click", () => {
+  if (!confirm("Réinitialiser ZARVIS ? Tâches, notes, profil et préférences seront effacés.")) return;
+  Object.values(LS).forEach(k => { store.del(k); });
+  try{ sessionStorage.removeItem(LS.HIST); }catch(e){}
+  location.reload();
+});
+
+/* Commandes rapides sous la console */
+[["Aide", "Aide"], ["Mes tâches", "Mes tâches"], ["Scan système", "Scanne le système"],
+ ["Une idée", "Donne-moi une idée"], ["Minuteur 5 min", "Minuteur 5 minutes"]]
+.forEach(([lbl, cmd]) => {
+  const b = el("button", null, lbl); b.type = "button";
+  b.addEventListener("click", () => processCommand(cmd));
+  $("quickbar").append(b);
+});
+
+/* ==============================================================================
+   NOYAU VISUEL — canvas 2D : anneaux, radar, particules, pulsation.
+   Redessiné à chaque frame via requestAnimationFrame ; figé si mouvement réduit.
+   ============================================================================== */
+const canvas = $("core");
+const ctx = canvas && canvas.getContext ? canvas.getContext("2d") : null;
+let PAL = { cyan: "#00e5ff", violet: "#a970ff", green: "#3dffa0" };
+function refreshPalette(){
+  try{
+    const cs = getComputedStyle(document.documentElement);
+    PAL.cyan   = cs.getPropertyValue("--cyan").trim()   || PAL.cyan;
+    PAL.violet = cs.getPropertyValue("--violet").trim() || PAL.violet;
+    PAL.green  = cs.getPropertyValue("--green").trim()  || PAL.green;
+  }catch(e){}
+  if (mqReduce.matches) drawCore(0);          // redessine l'image fixe après un thème
+}
+const coreMotion = { t: 0, energy: 0, target: 0 };
+function setCoreState(txt){ $("coreState").textContent = txt; }
+
+const PARTICS = Array.from({ length: 26 }, (_, i) => ({
+  r: 0.58 + (i % 5) * 0.085,
+  a: Math.random() * Math.PI * 2,
+  sp: (0.00018 + Math.random() * 0.0005) * (i % 2 ? 1 : -1),
+  s: 0.8 + Math.random() * 1.6
+}));
+
+function sizeCore(){
+  if (!ctx) return;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const rect = canvas.parentElement.getBoundingClientRect();
+  canvas.width = Math.max(1, Math.round(rect.width * dpr));
+  canvas.height = Math.max(1, Math.round(rect.height * dpr));
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+addEventListener("resize", sizeCore);
+
+function hexA(hex, a){
+  const n = hex.replace("#", "");
+  const v = n.length === 3 ? n.split("").map(c => c + c).join("") : n;
+  const r = parseInt(v.slice(0, 2), 16), g = parseInt(v.slice(2, 4), 16), b = parseInt(v.slice(4, 6), 16);
+  return "rgba(" + r + "," + g + "," + b + "," + a + ")";
+}
+
+function drawCore(dt){
+  if (!ctx) return;
+  const w = canvas.clientWidth || canvas.width, h = canvas.clientHeight || canvas.height;
+  const cx = w / 2, cy = h / 2, R = Math.min(w, h) / 2 - 8;
+  coreMotion.t += dt;
+  const t = coreMotion.t;
+  const speaking = ttsOK && state.voice && (function(){ try{ return speechSynthesis.speaking; }catch(e){ return false; } })();
+  coreMotion.target = speaking ? 1 : 0;
+  coreMotion.energy += (coreMotion.target - coreMotion.energy) * 0.06;
+  const E = coreMotion.energy;
+
+  ctx.clearRect(0, 0, w, h);
+
+  /* — Grille polaire discrète — */
+  ctx.strokeStyle = hexA(PAL.cyan, 0.10);
+  ctx.lineWidth = 1;
+  [0.25, 0.42, 0.59].forEach(f => {
+    ctx.beginPath(); ctx.arc(cx, cy, R * f, 0, Math.PI * 2); ctx.stroke();
+  });
+
+  /* — Anneau 1 : pointillés lents (horaire) — */
+  ctx.save();
+  ctx.translate(cx, cy); ctx.rotate(t * 0.00012);
+  ctx.strokeStyle = hexA(PAL.cyan, 0.55 + E * 0.3);
+  ctx.lineWidth = 1.4;
+  ctx.setLineDash([10, 14]);
+  ctx.beginPath(); ctx.arc(0, 0, R * 0.92, 0, Math.PI * 2); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+
+  /* — Anneau 2 : segments violets (anti-horaire) — */
+  ctx.save();
+  ctx.translate(cx, cy); ctx.rotate(-t * 0.00020);
+  ctx.strokeStyle = hexA(PAL.violet, 0.6);
+  ctx.lineWidth = 2;
+  for (let k = 0; k < 3; k++){
+    ctx.beginPath();
+    ctx.arc(0, 0, R * 0.80, k * 2.094, k * 2.094 + 1.35);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  /* — Anneau 3 : graduations vertes — */
+  ctx.save();
+  ctx.translate(cx, cy); ctx.rotate(t * 0.00030);
+  ctx.strokeStyle = hexA(PAL.green, 0.45);
+  ctx.lineWidth = 1.2;
+  for (let k = 0; k < 24; k++){
+    const a = k * (Math.PI / 12);
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a) * R * 0.70, Math.sin(a) * R * 0.70);
+    ctx.lineTo(Math.cos(a) * R * 0.74, Math.sin(a) * R * 0.74);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  /* — Balayage radar — */
+  const sweepA = t * 0.00045;
+  ctx.save();
+  ctx.translate(cx, cy); ctx.rotate(sweepA);
+  const grad = ctx.createLinearGradient(0, 0, R * 0.92, 0);
+  grad.addColorStop(0, hexA(PAL.cyan, 0));
+  grad.addColorStop(1, hexA(PAL.cyan, 0.16));
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.arc(0, 0, R * 0.92, -0.5, 0);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = hexA(PAL.cyan, 0.5 + E * 0.4);
+  ctx.lineWidth = 1.6;
+  ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(R * 0.92, 0); ctx.stroke();
+  ctx.restore();
+
+  /* — Particules orbitales — */
+  PARTICS.forEach(p => {
+    p.a += p.sp * dt;
+    const x = cx + Math.cos(p.a) * R * p.r;
+    const y = cy + Math.sin(p.a) * R * p.r;
+    const tw = 0.35 + 0.4 * Math.abs(Math.sin(t * 0.002 + p.r * 20));
+    ctx.fillStyle = hexA(PAL.cyan, tw * (0.5 + E * 0.5));
+    ctx.beginPath(); ctx.arc(x, y, p.s, 0, Math.PI * 2); ctx.fill();
+  });
+
+  /* — Noyau pulsant — */
+  const pulse = 1 + 0.06 * Math.sin(t * 0.0035) + E * 0.30 * (1 + 0.2 * Math.sin(t * 0.02));
+  const orbR = R * 0.26 * pulse;
+  const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, orbR * 2.1);
+  g.addColorStop(0, "rgba(255,255,255,0.95)");
+  g.addColorStop(0.25, hexA(PAL.cyan, 0.95));
+  g.addColorStop(0.6, hexA(PAL.cyan, 0.25 + E * 0.3));
+  g.addColorStop(1, hexA(PAL.cyan, 0));
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(cx, cy, orbR * 2.1, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "rgba(255,255,255,0.9)";
+  ctx.beginPath(); ctx.arc(cx, cy, orbR * 0.32, 0, Math.PI * 2); ctx.fill();
+
+  /* — Arc interne rapide — */
+  ctx.save();
+  ctx.translate(cx, cy); ctx.rotate(-t * 0.0009);
+  ctx.strokeStyle = hexA(PAL.violet, 0.8);
+  ctx.lineWidth = 1.6;
+  ctx.beginPath(); ctx.arc(0, 0, R * 0.38, 0, 1.9); ctx.stroke();
+  ctx.restore();
+}
+
+let lastFrame = 0;
+function loop(ts){
+  if (document.hidden){ lastFrame = ts; requestAnimationFrame(loop); return; }
+  const dt = Math.min(64, ts - lastFrame || 16);
+  lastFrame = ts;
+  drawCore(dt);
+  requestAnimationFrame(loop);
+}
+function startCore(){
+  if (!ctx) return;
+  sizeCore();
+  if (mqReduce.matches){ drawCore(0); return; }   // image fixe, aucune boucle
+  requestAnimationFrame(loop);
+}
+if (mqReduce.addEventListener)
+  mqReduce.addEventListener("change", () => { if (mqReduce.matches) drawCore(0); });
+document.addEventListener("visibilitychange", () => { lastFrame = performance.now(); });
+
+/* ==============================================================================
+   SÉQUENCE DE DÉMARRAGE
+   ============================================================================== */
+function restoreHistory(){
+  if (!state.history.length) return false;
+  addMessage("sys", "— Historique de session restauré (" + state.history.length + " message(s)) —",
+    { store:false, instant:true });
+  state.history.forEach(h => addMessage(h.k, h.t, { store:false, ts: h.ts, instant:true }));
+  return true;
+}
+
+function boot(){
+  initTheme();
+  updateVoiceUI();
+  buildModuleNav();
+  renderProtocols();
+  renderTasks(); renderNotes(); renderCounters();
+  initMicButton();
+  selectModule("tasks", false);
+  openDeck(isDesktopDeck());
+  startCore();
+  $("chipClock").textContent = heureCourante();
+
+  // Restauration d'un minuteur encore valide
+  if (state.timer && state.timer.ends > Date.now()) updateTimerUI();
+  else if (state.timer){ state.timer = null; store.del(LS.TIMER); }
+
+  const had = restoreHistory();
+  const fast = mqReduce.matches ? 0 : 320;
+  const op = state.profile.name;
+  const bootLines = [
+    "[SYS] Initialisation du noyau ZARVIS…",
+    "[SYS] Modules locaux chargés : tâches, notes, minuteur, calculatrice.",
+    "[SYS] Aucune connexion réseau requise — noyau 100 % hors-ligne.",
+    "[SYS] Synthèse vocale : " + (ttsOK ? "disponible" : "non prise en charge") +
+      " · Reconnaissance : " + (SRClass ? "disponible (navigateur)" : "non prise en charge") + "."
+  ];
+  bootLines.forEach((l, i) =>
+    setTimeout(() => addMessage("sys", l, { store:false }), fast * (i + 1)));
+  setTimeout(() => {
+    say(had
+      ? "Systèmes en ligne" + (op ? ", " + op : "") + ". Session restaurée. Tapez « Aide » pour les protocoles."
+      : "Systèmes en ligne" + (op ? ", " + op : "") +
+        ". Je suis ZARVIS, votre assistant 100 % local. Tapez « Aide » pour découvrir mes protocoles.",
+      { speakText: null });
+  }, fast * (bootLines.length + 1));
+}
+
+boot();
+</script>
+</body>
+</html>
